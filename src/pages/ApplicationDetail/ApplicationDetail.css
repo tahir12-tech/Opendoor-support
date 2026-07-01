@@ -1,0 +1,350 @@
+/* Application-detail styles (ported from application-detail.html; the modal
+   shell and toast come from the shared components). */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1080px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.backbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 16px;
+}
+.backbar a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.backbar svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rec-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.rec-head__id {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.rec-head__av {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  background: linear-gradient(150deg, var(--heliotrope), var(--amethyst));
+  color: #fff;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rec-head__name {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+.rec-head__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-mute);
+}
+.rec-head__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* timeline */
+.timeline {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  position: relative;
+}
+@media (max-width: 640px) {
+  .timeline {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}
+.tl-step {
+  padding: 0 18px;
+  position: relative;
+}
+.tl-step__node {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+.tl-step__node svg {
+  width: 18px;
+  height: 18px;
+}
+.tl-step--done .tl-step__node {
+  background: var(--deed);
+  color: #fff;
+}
+.tl-step--current .tl-step__node {
+  background: var(--paid);
+  color: #fff;
+  box-shadow: 0 0 0 5px var(--paid-bg);
+}
+.tl-step--todo .tl-step__node {
+  background: var(--app-bg);
+  color: var(--ink-mute);
+  border: 1.5px solid var(--line-strong);
+}
+.tl-step::after {
+  content: '';
+  position: absolute;
+  top: 18px;
+  left: calc(50% + 22px);
+  right: calc(-50% + 22px);
+  height: 2px;
+  background: var(--deed);
+  z-index: 1;
+}
+.tl-step:last-child::after {
+  display: none;
+}
+.tl-step--todo::after,
+.tl-step--current::after {
+  background: var(--line-strong);
+}
+@media (max-width: 640px) {
+  .tl-step::after {
+    display: none;
+  }
+}
+.tl-step__label {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  margin-top: 14px;
+}
+.tl-step__date {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin-top: 3px;
+}
+.tl-step__note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+}
+
+/* detail rows */
+.drow {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 14px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+  align-items: baseline;
+}
+.drow:last-child {
+  border-bottom: none;
+}
+.drow__k {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.drow__v {
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.drow__v b {
+  font-weight: 700;
+}
+@media (max-width: 540px) {
+  .drow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+/* guarantee summary card */
+.gsum {
+  background: linear-gradient(160deg, #1f1652 0%, #271d5f 60%, #5a2b8c 130%);
+  color: #fff;
+  border: none;
+  position: relative;
+  overflow: hidden;
+}
+.gsum::after {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -70px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(211, 100, 251, 0.4), transparent 70%);
+}
+.gsum .card__body {
+  position: relative;
+  z-index: 1;
+}
+.gsum__ref {
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.gsum__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 13.5px;
+}
+.gsum__row:last-child {
+  border-bottom: none;
+}
+.gsum__row .k {
+  color: rgba(255, 255, 255, 0.7);
+}
+.gsum__row .v {
+  font-weight: 700;
+}
+
+/* deed document */
+.deed {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--app-bg-2);
+}
+.deed__ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--heliotrope-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+}
+.deed__ic svg {
+  width: 22px;
+  height: 22px;
+}
+.deed__t {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14px;
+}
+.deed__s {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+
+.note-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.note-item:last-child {
+  border-bottom: none;
+}
+.note-item__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.note-item__t {
+  font-size: 13px;
+  color: var(--ink);
+}
+.note-item__time {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+
+/* amend modal body */
+.amend-facts {
+  display: flex;
+  gap: 10px;
+}
+.amend-fact {
+  flex: 1;
+  background: var(--app-bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+}
+.amend-fact .k {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.amend-fact .v {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  margin-top: 3px;
+}
+.amend-msg {
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.amend-msg svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+.amend-msg--ok {
+  color: var(--deed);
+}
+.amend-msg--err {
+  color: var(--danger);
+}

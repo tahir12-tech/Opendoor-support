@@ -1,0 +1,204 @@
+/* =====================================================================
+   Applications — every referral, filterable and searchable. Status tabs,
+   search, agency/branch filters, a partner column + filter (opndoor admin),
+   the drill-through banner when arriving from Agencies & branches, and row
+   click through to the detail view. Partner isolation + the referrer
+   "own referrals only" rule live in applicationsService.
+   ===================================================================== */
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications, getPartners,
+  partnerName, type Status,
+} from '@/data';
+import { useSession } from '@/session/SessionContext';
+import { usePageMeta } from '@/components/layout/pageMeta';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
+import { Card } from '@/components/ui/Card';
+import { Eyebrow } from '@/components/ui/Eyebrow';
+import { Pill, type PillVariant } from '@/components/ui/Pill';
+import { FilterTabs } from '@/components/ui/FilterTabs';
+import { RoleOnly } from '@/components/ui/RoleOnly';
+import { RoleNote } from '@/components/ui/RoleNote';
+import './Applications.css';
+
+const STATUS_LABEL: Record<Status, string> = { sent: 'Sent', paid: 'Paid', deed: 'Deed Issued' };
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+function initials(name: string): string {
+  return name.split(' ').map((p) => p[0]).slice(0, 2).join('');
+}
+
+export function Applications() {
+  usePageMeta('applications', 'Applications', ['Home', 'Applications']);
+  const { role, partnerScope } = useSession();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+
+  // Initial filters from the drill-through URL (?agency= / ?branch=).
+  const [status, setStatus] = useState<Status | 'all'>('all');
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState('Newest first');
+  const [partner, setPartner] = useState('');
+  const [agency, setAgency] = useState(() => params.get('agency') || (params.get('branch') ? agencyOfBranch(params.get('branch')!) : ''));
+  const [branch, setBranch] = useState(() => params.get('branch') || '');
+
+  // Reset partner/agency/branch when the role changes (partner isolation), skipping first run.
+  const firstRole = useRef(true);
+  useEffect(() => {
+    if (firstRole.current) {
+      firstRole.current = false;
+      return;
+    }
+    setPartner('');
+    setAgency('');
+    setBranch('');
+  }, [role]);
+
+  const scopeOpts = { role, scope: partnerScope, partner: partner || undefined };
+  const counts = countByStatus(scopeOpts);
+  const total = counts.all;
+  const rows = useMemo(
+    () => getApplications({ ...scopeOpts, status, agency: agency || undefined, branch: branch || undefined, q, sort }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [role, partnerScope, partner, status, agency, branch, q, sort],
+  );
+
+  const agencyOptions = agencyNamesForScope(scopeOpts);
+  const branchOptions = branchNamesForScope(scopeOpts, agency || undefined);
+  const showPartner = role === 'superadmin';
+
+  const tabs = [
+    { id: 'all', label: 'All', count: counts.all },
+    { id: 'sent', label: <Pill variant="sent" style={{ background: 'none', padding: 0 }}>Sent</Pill>, count: counts.sent },
+    { id: 'paid', label: <Pill variant="paid" style={{ background: 'none', padding: 0 }}>Paid</Pill>, count: counts.paid },
+    { id: 'deed', label: <Pill variant="deed" style={{ background: 'none', padding: 0 }}>Deed Issued</Pill>, count: counts.deed },
+  ];
+
+  const activeFilter = branch
+    ? <>Showing applications for the <b>{branch}</b> branch{agency ? <> at <b>{agency}</b></> : null}</>
+    : agency
+      ? <>Showing applications for <b>{agency}</b> (all branches)</>
+      : null;
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <Eyebrow>Tracking</Eyebrow>
+          <h1 className="page-head__title" style={{ marginTop: 10 }}>Applications</h1>
+          <p className="page-head__sub">Every referral from sent through to deed issued. Filter by status, agency or branch, or search by tenant.</p>
+        </div>
+        <RoleOnly roles={['superadmin', 'referrer']}>
+          <div className="page-head__actions">
+            <Button variant="primary" size="sm" to="/new-application"><Icon name="plus" /> New application</Button>
+          </div>
+        </RoleOnly>
+      </div>
+
+      <RoleOnly roles={['referrer']}>
+        <RoleNote style={{ marginBottom: 18 }}>
+          Showing <b>your referrals only</b>. You can track every application you have sent.
+        </RoleNote>
+      </RoleOnly>
+
+      {activeFilter && (
+        <div className="active-filter">
+          <Icon name="filter" className="lead" />
+          <span>{activeFilter}</span>
+          <button className="active-filter__clear" onClick={() => { setAgency(''); setBranch(''); }}>
+            <Icon name="x" />Clear filter
+          </button>
+        </div>
+      )}
+
+      <div className="toolbar">
+        <FilterTabs tabs={tabs} active={status} onChange={(id) => setStatus(id as Status | 'all')} />
+      </div>
+
+      <div className="toolbar">
+        <div className="toolbar__search">
+          <Icon name="search" />
+          <input type="text" placeholder="Search by tenant, property or reference" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+        <div className="filterchips">
+          {showPartner && (
+            <span className="fchip">
+              <Icon name="shield" />Partner:{' '}
+              <select value={partner} onChange={(e) => { setPartner(e.target.value); setAgency(''); setBranch(''); }}>
+                <option value="">All</option>
+                {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </span>
+          )}
+          <span className="fchip">
+            <Icon name="building" />Agency:{' '}
+            <select value={agency} onChange={(e) => { setAgency(e.target.value); setBranch(''); }}>
+              <option value="">All</option>
+              {agencyOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </span>
+          <span className="fchip">
+            <Icon name="home" />Branch:{' '}
+            <select value={branch} onChange={(e) => setBranch(e.target.value)}>
+              <option value="">{agency ? 'All branches' : 'All'}</option>
+              {branchOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </span>
+          <span className="fchip">
+            <Icon name="chevronDown" />Sort:{' '}
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option>Newest first</option>
+              <option>Oldest first</option>
+              <option>Rent: high to low</option>
+            </select>
+          </span>
+        </div>
+        <span className="countline">Showing <b>{rows.length}</b> of <b>{total}</b></span>
+      </div>
+
+      <Card>
+        <div className="table-wrap">
+          <table className="dt">
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                {showPartner && <th>Partner</th>}
+                <th>Property</th>
+                <th>Branch</th>
+                <th style={{ textAlign: 'right' }}>Monthly rent</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.ref} onClick={() => navigate(`/applications/${encodeURIComponent(r.ref)}`)}>
+                  <td>
+                    <div className="who">
+                      <span className="who__av">{initials(r.tenant)}</span>
+                      <div><div className="dt__name">{r.tenant}</div><div className="dt__sub">{r.ref}</div></div>
+                    </div>
+                  </td>
+                  {showPartner && <td>{partnerName(r.partner)}</td>}
+                  <td>{r.prop}</td>
+                  <td>{r.branch}<div className="dt__sub">{r.agency}</div></td>
+                  <td style={{ textAlign: 'right' }}><span className="dt__rent">£{r.rent.toLocaleString('en-GB')}</span><div className="dt__sub">per month</div></td>
+                  <td><Pill variant={r.status as PillVariant}>{STATUS_LABEL[r.status]}</Pill></td>
+                  <td className="dt__num soft">{fmtDate(r.date)}</td>
+                  <td><Icon name="chevronRight" className="dt__chev" size={16} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {rows.length === 0 && <div className="empty is-shown">No applications match your filters.</div>}
+      </Card>
+    </>
+  );
+}

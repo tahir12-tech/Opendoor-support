@@ -1,0 +1,53 @@
+/* Styled dropdowns (ported from the dashboard style block) shared by the
+   dashboard measure/period/trend selects and the org partner selector. */
+.measure-select,
+.trend-select {
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--app-bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 30px 6px 12px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 152px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238676ab' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.measure-select:focus,
+.trend-select:focus {
+  outline: none;
+  border-color: var(--heliotrope-deep);
+  box-shadow: 0 0 0 3px rgba(211, 100, 251, 0.15);
+}
+.trend-select {
+  min-width: 140px;
+}
+.period-select {
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  background: #fff;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 9px 38px 9px 16px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23271d5f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+.period-select:hover {
+  border-color: var(--ink);
+}
+.period-select:focus {
+  outline: none;
+  border-color: var(--heliotrope-deep);
+  box-shadow: 0 0 0 3px rgba(211, 100, 251, 0.15);
+}

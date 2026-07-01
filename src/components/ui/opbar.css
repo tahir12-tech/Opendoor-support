@@ -1,0 +1,52 @@
+/* opndoor-tier banner + eyebrow, shared by Partners and Reconciliation. */
+.rec-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.rec-eyebrow .opx {
+  color: var(--heliotrope-deep);
+}
+.opbar {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  background: linear-gradient(160deg, #1f1652, #271d5f 60%, #4a2580);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-md);
+  padding: 13px 18px;
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+}
+.opbar::after {
+  content: '';
+  position: absolute;
+  top: -80px;
+  right: -50px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(211, 100, 251, 0.35), transparent 70%);
+}
+.opbar svg {
+  width: 18px;
+  height: 18px;
+  color: var(--heliotrope);
+  flex-shrink: 0;
+  position: relative;
+}
+.opbar span {
+  position: relative;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.opbar b {
+  color: #fff;
+}

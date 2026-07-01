@@ -1,0 +1,283 @@
+/* Reconciliation styles (ported from reconciliation.html; the opndoor banner
+   comes from opbar.css and the toast from the shared component). */
+.qstat {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+@media (max-width: 720px) {
+  .qstat {
+    flex-wrap: wrap;
+  }
+}
+.qstat__card {
+  flex: 1;
+  min-width: 150px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.qstat__n {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: -0.03em;
+}
+.qstat__l {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+
+/* filter tabs */
+.rtabs {
+  display: flex;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 18px;
+  width: fit-content;
+}
+.rtab {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  padding: 8px 16px;
+  border-radius: 999px;
+  transition: background 0.15s, color 0.15s;
+}
+.rtab:hover {
+  color: var(--ink);
+}
+.rtab.is-active {
+  background: var(--valhalla);
+  color: #fff;
+}
+.rtab__c {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+/* queue */
+.rq {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rqitem {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+  padding: 18px 20px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  transition: opacity 0.25s, transform 0.25s;
+}
+.rqitem__ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rqitem__ic svg {
+  width: 20px;
+  height: 20px;
+}
+.rqitem__ic--agency {
+  background: rgba(39, 29, 95, 0.08);
+  color: var(--valhalla);
+}
+.rqitem__ic--branch {
+  background: var(--white-lilac);
+  color: var(--heliotrope-deep);
+}
+.rqitem__main {
+  flex: 1;
+  min-width: 0;
+}
+.rqitem__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rqitem__name {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+.rqitem__meta {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.rqitem__meta b {
+  color: var(--ink);
+  font-weight: 700;
+}
+.rqitem__actions {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-shrink: 0;
+}
+@media (max-width: 860px) {
+  .rqitem {
+    flex-wrap: wrap;
+  }
+  .rqitem__actions {
+    width: 100%;
+  }
+}
+
+/* suggested match */
+.match {
+  margin-top: 12px;
+  background: var(--app-bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.match__lbl {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--warn);
+  flex-shrink: 0;
+}
+.match__txt {
+  font-size: 13px;
+  color: var(--ink);
+}
+.match__txt b {
+  font-weight: 700;
+}
+.match__pct {
+  margin-left: auto;
+  font-family: var(--display);
+  font-weight: 800;
+  color: var(--warn);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.match--none {
+  color: var(--deed);
+}
+.match--none .match__lbl {
+  color: var(--deed);
+}
+
+/* hubspot mapping chip */
+.hs {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.hs svg {
+  width: 13px;
+  height: 13px;
+}
+.hs--synced {
+  background: rgba(34, 178, 110, 0.13);
+  color: var(--deed);
+}
+.hs--pending {
+  background: rgba(244, 185, 66, 0.18);
+  color: var(--warn);
+}
+.hs--none {
+  background: var(--app-bg);
+  color: var(--ink-mute);
+}
+.hs__co {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* merge picker */
+.mergebox {
+  margin-top: 12px;
+  border: 1px dashed var(--heliotrope-deep);
+  background: var(--white-lilac);
+  border-radius: var(--r-md);
+  padding: 14px;
+  display: none;
+}
+.mergebox.is-open {
+  display: block;
+}
+.mergebox__lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  margin-bottom: 8px;
+}
+.mergebox__row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.mergebox select {
+  flex: 1;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  font-family: var(--body);
+  font-size: 13.5px;
+  color: var(--ink);
+  background: #fff;
+}
+.mergebox select:focus {
+  outline: none;
+  border-color: var(--heliotrope-deep);
+  box-shadow: 0 0 0 3px rgba(211, 100, 251, 0.15);
+}
+.mergebox__hint {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 8px;
+}
+.mergebox__hint b {
+  color: var(--ink);
+}
+
+.empty {
+  display: none;
+  padding: 46px;
+  text-align: center;
+  color: var(--ink-mute);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+}
+.empty.is-shown {
+  display: block;
+}

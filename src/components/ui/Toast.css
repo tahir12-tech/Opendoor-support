@@ -1,0 +1,41 @@
+/* Shared toast (the identical .toast block used across five screens). */
+.toast-wrap {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: var(--valhalla);
+  color: #fff;
+  padding: 13px 18px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-lg);
+  font-size: 13.5px;
+  font-weight: 600;
+  max-width: 480px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.25s, transform 0.25s;
+}
+.toast.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast svg {
+  width: 17px;
+  height: 17px;
+  color: #fff;
+  background: var(--deed);
+  border-radius: 50%;
+  padding: 3px;
+  flex-shrink: 0;
+}

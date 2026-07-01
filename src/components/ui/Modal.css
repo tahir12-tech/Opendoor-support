@@ -1,0 +1,78 @@
+/* Shared modal shell (the identical .modal-scrim/.modal block used across
+   org, application detail, partners, users and help in the prototype). */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 18, 64, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-scrim.is-open {
+  display: flex;
+}
+.modal {
+  background: #fff;
+  border-radius: var(--r-xl);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-lg);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.modal__title {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.modal__sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.modal__body {
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.modal__foot {
+  padding: 18px 26px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.modal__close {
+  all: unset;
+  cursor: pointer;
+  color: var(--ink-mute);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal__close:hover {
+  background: var(--app-bg);
+  color: var(--ink);
+}
+.modal__close svg {
+  width: 20px;
+  height: 20px;
+}

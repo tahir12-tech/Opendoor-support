@@ -41,9 +41,12 @@ export function Applications() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
 
-  // Initial filters from the drill-through URL (?agency= / ?branch=).
+  // Initial filters from the drill-through URL (?agency= / ?branch= / ?status=).
   // 'refunded' is a status chip that cross-cuts Paid (status stays Paid by design).
-  const [status, setStatus] = useState<Status | 'all' | 'refunded'>('all');
+  const [status, setStatus] = useState<Status | 'all' | 'refunded'>(() => {
+    const s = params.get('status');
+    return s === 'sent' || s === 'paid' || s === 'deed' || s === 'refunded' ? s : 'all';
+  });
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('Newest first');
   const [partner, setPartner] = useState('');

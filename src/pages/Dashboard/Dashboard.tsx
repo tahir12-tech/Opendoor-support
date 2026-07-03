@@ -8,6 +8,7 @@
    model). INTEGRATION points live in those services, not here.
    ===================================================================== */
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, buildApplicationDoc, buildBordereauCsv, buildPerformanceDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, partnerName,
@@ -91,6 +92,17 @@ export function Dashboard() {
   const settleDate = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${settlement.settlementDate.getFullYear()}`;
   const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
   const dmyShort = (x: Date) => `${String(x.getDate()).padStart(2, '0')}/${String(x.getMonth() + 1).padStart(2, '0')}/${x.getFullYear()}`;
+
+  // ---- Needs-attention row (compact stat-lines promoted from existing data) ----
+  // Same scoped figures shown everywhere; each line renders only when non-zero.
+  const canSeeSettlements = role === 'superadmin' || role === 'management';
+  const partnerDue = settlement.partners.reduce((s, p) => s + p.commission, 0);
+  const agentDue = agentSettlement.agencies.reduce((s, a) => s + a.commission, 0);
+  const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
+  const naAwaiting = d.live && d.awaiting > 0;
+  const naStuckSent = d.stuckSent !== '0';
+  const naSettlements = d.live && canSeeSettlements && (partnerDue > 0 || agentDue > 0);
+  const hasNeedsAttention = naAwaiting || naStuckSent || naSettlements;
 
   const [measure, setMeasure] = useState<Record<ChartKey, Measure>>({ branch: 'value', agency: 'value', referrer: 'value' });
   const [trendView, setTrendView] = useState<TrendView>('month');
@@ -188,6 +200,34 @@ export function Dashboard() {
       </RoleOnly>
 
       <div className="dash-grid">
+        {/* NEEDS ATTENTION — compact stat-lines, each linking to the relevant view */}
+        {hasNeedsAttention && (
+          <section className="needs-attn">
+            {naAwaiting && (
+              <Link className="na-stat na-stat--sign" to="/activity" title="Deeds awaiting the tenant's signature">
+                <span className="na-stat__n">{d.awaiting}</span>
+                <span className="na-stat__l">awaiting tenant signature</span>
+                <Icon name="arrowRight" className="na-stat__go" />
+              </Link>
+            )}
+            {naStuckSent && (
+              <Link className="na-stat na-stat--sent" to="/applications?status=sent" title="Applications sent but not yet paid">
+                <span className="na-stat__n">{d.stuckSent}</span>
+                <span className="na-stat__l">stuck at Sent · awaiting payment</span>
+                <Icon name="arrowRight" className="na-stat__go" />
+              </Link>
+            )}
+            {naSettlements && (
+              <a className="na-stat na-stat--pay" href="#settlements" title="Jump to the settlement sections below">
+                <span className="na-stat__l">
+                  <b>Settlements due {settleDayMonth}:</b> {gbpPence(partnerDue)} partner / {gbpPence(agentDue)} agent
+                </span>
+                <Icon name="arrowRight" className="na-stat__go" />
+              </a>
+            )}
+          </section>
+        )}
+
         {/* FUNNEL */}
         <Card>
           <CardHead
@@ -338,48 +378,7 @@ export function Dashboard() {
         {/* Live payment figures (gross/refunds/net + net commission) are folded
             into the hero KPIs above; there is no separate block. */}
 
-        {/* COMMISSION SETTLEMENT (prior calendar month, payable on the 15th) */}
-        {d.live && settlement.partners.length > 0 && (
-          <RoleOnly roles={['superadmin', 'management']}>
-            <section className="card settle">
-              <div className="settle__head">
-                <div>
-                  <div className="kpi__label">Commission settlement</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Partner commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on the 15th.
-                  </div>
-                </div>
-              </div>
-              {settlement.partners.map((p) => (
-                <div key={p.partner} className="settle__partner">
-                  <div className="settle__row">
-                    <span>Commission payable to <b>{p.partnerName}</b> on <b>{settleDate}</b></span>
-                    <span className="settle__amt">{gbpPence(p.commission)}</span>
-                  </div>
-                  <div className="settle__apps">
-                    <table>
-                      <thead>
-                        <tr><th>Reference</th><th>Branch</th><th className="num">Paid</th><th className="num">Fee</th><th className="num">Commission</th></tr>
-                      </thead>
-                      <tbody>
-                        {p.apps.map((ap) => (
-                          <tr key={ap.ref}>
-                            <td>{ap.ref}</td>
-                            <td>{ap.branch}{ap.agency ? ` · ${ap.agency}` : ''}</td>
-                            <td className="num">{dmyShort(ap.paidAt)}</td>
-                            <td className="num">{gbpPence(ap.rent)}</td>
-                            <td className="num">{gbpPence(ap.commission)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
-            </section>
-          </RoleOnly>
-        )}
-
+        {/* PERFORMANCE BAND: commission-by-partner, then the breakdown cards, then trend. */}
         {/* COMMISSION BY PARTNER (selected period) */}
         {d.live && partnerBreakdown.length > 0 && (
           <RoleOnly roles={['superadmin', 'management']}>
@@ -388,7 +387,7 @@ export function Dashboard() {
                 <div>
                   <div className="kpi__label">Commission by partner</div>
                   <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Partner and agent commission for the selected period, gross and net of refunds. Net columns reconcile to the summary totals.
+                    Partner and agent commission for the <b>selected period</b>, gross and net of refunds. Net columns reconcile to the summary totals. Settlement (what is actually payable next) is calculated separately, for the <b>prior calendar month</b>.
                   </div>
                 </div>
               </div>
@@ -416,48 +415,6 @@ export function Dashboard() {
                   </tbody>
                 </table>
               </div>
-            </section>
-          </RoleOnly>
-        )}
-
-        {/* AGENT COMMISSION SETTLEMENT (prior calendar month, agency level, payable 15th) */}
-        {d.live && agentSettlement.agencies.length > 0 && (
-          <RoleOnly roles={['superadmin', 'management']}>
-            <section className="card settle">
-              <div className="settle__head">
-                <div>
-                  <div className="kpi__label">Agent commission settlement</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each agency on the 15th.
-                  </div>
-                </div>
-              </div>
-              {agentSettlement.agencies.map((a) => (
-                <div key={`${a.partner}-${a.agency}`} className="settle__partner">
-                  <div className="settle__row">
-                    <span>Agent commission payable to <b>{a.agency}</b> on <b>{agentSettleDate}</b></span>
-                    <span className="settle__amt">{gbpPence(a.commission)}</span>
-                  </div>
-                  <div className="settle__apps">
-                    <table>
-                      <thead>
-                        <tr><th>Reference</th><th>Branch</th><th className="num">Paid</th><th className="num">Fee</th><th className="num">Agent commission</th></tr>
-                      </thead>
-                      <tbody>
-                        {a.apps.map((ap) => (
-                          <tr key={ap.ref}>
-                            <td>{ap.ref}</td>
-                            <td>{ap.branch}</td>
-                            <td className="num">{dmyShort(ap.paidAt)}</td>
-                            <td className="num">{gbpPence(ap.rent)}</td>
-                            <td className="num">{gbpPence(ap.commission)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ))}
             </section>
           </RoleOnly>
         )}
@@ -531,6 +488,103 @@ export function Dashboard() {
           </Card>
         </RoleOnly>
 
+        {/* SETTLEMENTS (below performance) — payable totals; applications collapsed. */}
+        {(naSettlements || (d.live && (settlement.partners.length > 0 || agentSettlement.agencies.length > 0))) && (
+          <RoleOnly roles={['superadmin', 'management']}>
+            <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
+          </RoleOnly>
+        )}
+
+        {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
+        {d.live && settlement.partners.length > 0 && (
+          <RoleOnly roles={['superadmin', 'management']}>
+            <section className="card settle">
+              <div className="settle__head">
+                <div>
+                  <div className="kpi__label">Partner commission settlement</div>
+                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
+                    Partner commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.
+                  </div>
+                </div>
+              </div>
+              {settlement.partners.map((p) => (
+                <div key={p.partner} className="settle__partner">
+                  <div className="settle__row">
+                    <span>Commission payable to <b>{p.partnerName}</b></span>
+                    <span className="settle__amt">{gbpPence(p.commission)}</span>
+                  </div>
+                  <details className="settle__exp">
+                    <summary>Show applications ({p.apps.length})</summary>
+                    <div className="settle__apps">
+                      <table>
+                        <thead>
+                          <tr><th>Reference</th><th>Branch</th><th className="num">Paid</th><th className="num">Fee</th><th className="num">Commission</th></tr>
+                        </thead>
+                        <tbody>
+                          {p.apps.map((ap) => (
+                            <tr key={ap.ref}>
+                              <td>{ap.ref}</td>
+                              <td>{ap.branch}{ap.agency ? ` · ${ap.agency}` : ''}</td>
+                              <td className="num">{dmyShort(ap.paidAt)}</td>
+                              <td className="num">{gbpPence(ap.rent)}</td>
+                              <td className="num">{gbpPence(ap.commission)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                </div>
+              ))}
+            </section>
+          </RoleOnly>
+        )}
+
+        {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
+        {d.live && agentSettlement.agencies.length > 0 && (
+          <RoleOnly roles={['superadmin', 'management']}>
+            <section className="card settle">
+              <div className="settle__head">
+                <div>
+                  <div className="kpi__label">Agent commission settlement</div>
+                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
+                    Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each agency on <b>{agentSettleDate}</b>.
+                  </div>
+                </div>
+              </div>
+              {agentSettlement.agencies.map((a) => (
+                <div key={`${a.partner}-${a.agency}`} className="settle__partner">
+                  <div className="settle__row">
+                    <span>Agent commission payable to <b>{a.agency}</b></span>
+                    <span className="settle__amt">{gbpPence(a.commission)}</span>
+                  </div>
+                  <details className="settle__exp">
+                    <summary>Show applications ({a.apps.length})</summary>
+                    <div className="settle__apps">
+                      <table>
+                        <thead>
+                          <tr><th>Reference</th><th>Branch</th><th className="num">Paid</th><th className="num">Fee</th><th className="num">Agent commission</th></tr>
+                        </thead>
+                        <tbody>
+                          {a.apps.map((ap) => (
+                            <tr key={ap.ref}>
+                              <td>{ap.ref}</td>
+                              <td>{ap.branch}</td>
+                              <td className="num">{dmyShort(ap.paidAt)}</td>
+                              <td className="num">{gbpPence(ap.rent)}</td>
+                              <td className="num">{gbpPence(ap.commission)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                </div>
+              ))}
+            </section>
+          </RoleOnly>
+        )}
+
         {/* SUPPORT METRICS */}
         <div className="section-label"><Eyebrow>Operational health</Eyebrow></div>
         <section className="supportrow">
@@ -548,13 +602,6 @@ export function Dashboard() {
             <div className="kpi__label">Avg. time Payment → Deed</div>
             <div className="kpi__value" style={{ marginTop: 10 }}>{d.avgPaidToDeed} <span className="unit">days</span></div>
             <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>From fee paid to deed issued</div>
-          </div>
-          <div className="card smetric">
-            <div className="kpi__label">Applications stuck at stage</div>
-            <div className="stuck">
-              <div className="stuck__col"><span className="stuck__n" style={{ color: 'var(--sent)' }}>{d.stuckSent}</span><span className="stuck__l">Sent · awaiting payment</span></div>
-              <div className="stuck__col"><span className="stuck__n" style={{ color: 'var(--paid)' }}>{d.stuckPaid}</span><span className="stuck__l">Paid · awaiting deed</span></div>
-            </div>
           </div>
         </section>
       </div>

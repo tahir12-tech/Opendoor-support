@@ -48,11 +48,8 @@
   font-size: 13px;
   color: var(--ink-soft);
 }
-.auth__row label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
+.auth__row--end {
+  justify-content: flex-end;
 }
 .auth__row a {
   color: var(--heliotrope-deep);

@@ -43,6 +43,9 @@ interface SessionValue {
   /** Auth (Supabase mode). In mock mode: status is always "ready". */
   status: SessionStatus;
   authError: string | null;
+  /** Mark TOTP as freshly verified in this runtime (called by Login on a
+      successful code). Grants AAL2 trust that a restored session cannot forge. */
+  markMfaVerified: () => void;
   signOut: () => Promise<void>;
   /** Re-load the RLS-scoped datasets after a mutation (no-op in mock mode). */
   refresh: () => Promise<void>;
@@ -61,6 +64,25 @@ function initialsOf(name: string): string {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const emb = (x: any): any => (Array.isArray(x) ? x[0] : x);
+
+// In-memory (per-runtime, NON-persisted) proof that TOTP was verified in THIS
+// page runtime. It resets on every fresh page load, so it cannot be restored
+// from storage. A restored AAL2 session (browser session-restore / crash
+// recovery re-hydrating sessionStorage, or a cold new runtime) is therefore not
+// trusted as AAL2 until re-verified — the belt to sessionStorage's braces.
+let mfaTrustedThisRuntime = false;
+
+/** True when this page load is a genuine same-tab reload (F5/Cmd-R), as opposed
+    to a fresh navigation, new tab, browser restart or restore. Used to keep a
+    deliberate refresh signed in while forcing re-verification on a cold start. */
+function isPageReload(): boolean {
+  try {
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    return nav?.type === 'reload';
+  } catch {
+    return false;
+  }
+}
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role>(initialRole);
@@ -110,6 +132,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if ((aalData?.currentLevel ?? 'aal1') !== 'aal2') {
         setStatus('needsMfa');
         return;
+      }
+      // Belt to sessionStorage's braces: even if the token store reports AAL2,
+      // only trust it when TOTP was verified in THIS runtime. A restored session
+      // (browser session-restore, crash recovery re-hydrating sessionStorage) has
+      // no such proof, so we force a fresh TOTP challenge. A deliberate same-tab
+      // reload (F5) is the one exception — we adopt its AAL2 and stay signed in.
+      if (!mfaTrustedThisRuntime) {
+        if (isPageReload()) {
+          mfaTrustedThisRuntime = true;
+        } else {
+          setStatus('needsMfa');
+          return;
+        }
       }
       const userId = session.user.id;
       const { data, error } = await supabase
@@ -166,12 +201,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [resolve]);
 
+  const markMfaVerified = useCallback(() => {
+    mfaTrustedThisRuntime = true;
+  }, []);
+
   const signOut = useCallback(async () => {
     if (SUPABASE_ENABLED) {
       hydratedFor.current = null;
       // Drop the cached hydration promise: signing back in (even as the same
       // user, in-page with no reload) must re-fetch, not replay a stale snapshot.
       hydration.current = null;
+      // Revoke AAL2 trust: a fresh sign-in must re-verify TOTP, not inherit it.
+      mfaTrustedThisRuntime = false;
       await authService.signOut();
       setProfile(null);
       setStatus('signedOut');
@@ -197,10 +238,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     : ROLES[role];
 
   const value = useMemo<SessionValue>(
-    () => ({ role, setRole, user, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, signOut, refresh }),
+    () => ({ role, setRole, user, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh }),
     // dataVersion is intentionally a dep: bumping it after (re-)hydration changes
     // the context identity so consumers re-read the refreshed working copies.
-    [role, setRole, user, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, signOut, refresh, dataVersion],
+    [role, setRole, user, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod, status, authError, markMfaVerified, signOut, refresh, dataVersion],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

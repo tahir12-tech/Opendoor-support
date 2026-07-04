@@ -25,7 +25,7 @@ type Step = 'creds' | '2fa' | 'enrol' | 'verify';
 export function Login() {
   useDocumentTitle('Sign in');
   const navigate = useNavigate();
-  const { status } = useSession();
+  const { status, markMfaVerified } = useSession();
   const [step, setStep] = useState<Step>('creds');
   const [email, setEmail] = useState('priya.nair@brackenhouse.co.uk');
   const [password, setPassword] = useState('');
@@ -119,6 +119,10 @@ export function Login() {
       focusFirst();
       return;
     }
+    // TOTP verified in THIS runtime: grant the in-memory AAL2 trust BEFORE the
+    // onAuthStateChange-driven resolve() runs, so it routes on rather than
+    // bouncing back to the (restored-session) needsMfa gate.
+    markMfaVerified();
     // AAL2 reached; SessionContext resolves to "ready" and the effect above routes on.
   }
 
@@ -196,8 +200,7 @@ export function Login() {
                   <label htmlFor="pass">Password</label>
                   <input id="pass" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
-                <div className="auth__row">
-                  <label><input type="checkbox" /> Keep me signed in for 30 days</label>
+                <div className="auth__row auth__row--end">
                   <a href="/forgot-password">Forgot password?</a>
                 </div>
                 <Button variant="primary" block type="submit" arrow disabled={busy}>{busy ? 'Signing in…' : 'Continue'}</Button>

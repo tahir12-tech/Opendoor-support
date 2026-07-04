@@ -6,7 +6,8 @@
    ===================================================================== */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addPartner, getPartner, getPartners, orgCounts, updatePartner, type PartnerStatus } from '@/data';
+import { addPartner, getPartner, getPartners, orgCounts, updatePartnerSettings, getPartnerAudit, type PartnerAuditEntry, type PartnerSettingsInput, type PartnerStatus } from '@/data';
+import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -27,10 +28,21 @@ const STATUS_PILL: Record<PartnerStatus, [string, PillVariant]> = {
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 const asPct = (frac: number | undefined, fallback: number) => Math.round((frac != null ? frac : fallback) * 100);
 
+const AUDIT_LABEL: Record<string, string> = {
+  partner_rate: 'Partner commission', agent_rate: 'Agent commission',
+  status: 'Status', live_from: 'Live from', name: 'Name',
+};
+const auditField = (f: string) => AUDIT_LABEL[f] ?? f;
+const dmy = (d: Date) =>
+  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+interface RateChange { label: string; from: string; to: string; }
+
 export function PartnerManagement() {
   usePageMeta('partners', 'Partners', ['Home', 'Administration', 'Partners']);
   const navigate = useNavigate();
   const toast = useToast();
+  const { refresh: refreshData } = useSession();
   const [, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
 
@@ -41,6 +53,10 @@ export function PartnerManagement() {
   const [status, setStatus] = useState<PartnerStatus>('active');
   const [partnerRate, setPartnerRate] = useState('25');
   const [agentRate, setAgentRate] = useState('10');
+  const [audit, setAudit] = useState<PartnerAuditEntry[]>([]);
+  const [saving, setSaving] = useState(false);
+  // Pending rate change awaiting confirmation (current -> new), or null.
+  const [confirm, setConfirm] = useState<{ input: PartnerSettingsInput; changes: RateChange[] } | null>(null);
 
   const partners = getPartners();
 
@@ -51,6 +67,8 @@ export function PartnerManagement() {
     setStatus('active');
     setPartnerRate('25');
     setAgentRate('10');
+    setAudit([]);
+    setConfirm(null);
     setOpen(true);
   }
   function openEdit(id: string) {
@@ -62,6 +80,9 @@ export function PartnerManagement() {
     setStatus(p.status || 'active');
     setPartnerRate(String(asPct(p.partnerRate, 0.25)));
     setAgentRate(String(asPct(p.agentRate, 0.1)));
+    setConfirm(null);
+    setAudit([]);
+    getPartnerAudit(id).then(setAudit).catch(() => setAudit([]));
     setOpen(true);
   }
 
@@ -71,19 +92,47 @@ export function PartnerManagement() {
     return Math.min(100, n) / 100;
   }
 
+  // Persist an edit (already confirmed for rate changes) and re-hydrate.
+  async function applyUpdate(id: string, input: PartnerSettingsInput) {
+    setSaving(true);
+    try {
+      await updatePartnerSettings(id, input);
+      await refreshData(); // live mode: re-read the partner (and its new live rate)
+      toast(`Updated ${input.name}. New applications will use ${Math.round(input.partnerRate * 100)}% partner / ${Math.round(input.agentRate * 100)}% agent; existing applications keep the rate recorded when they were created.`);
+      setConfirm(null);
+      setOpen(false);
+      refresh();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not save the partner.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function save() {
-    if (!name.trim()) return;
+    if (!name.trim() || saving) return;
     const pr = readRate(partnerRate, 0.25);
     const ar = readRate(agentRate, 0.1);
     if (editingId) {
-      updatePartner(editingId, { name: name.trim(), since: since || undefined, status, partnerRate: pr, agentRate: ar });
-      toast(`Updated ${name.trim()}. Commission set to ${Math.round(pr * 100)}% partner / ${Math.round(ar * 100)}% agent.`);
+      const cur = getPartner(editingId);
+      if (!cur) return;
+      const input: PartnerSettingsInput = { name: name.trim(), status, since, partnerRate: pr, agentRate: ar };
+      // A rate change needs explicit confirmation (current -> new), since it sets
+      // the rate for new applications going forward.
+      const changes: RateChange[] = [];
+      if (cur.partnerRate !== pr) changes.push({ label: 'Partner commission', from: `${asPct(cur.partnerRate, 0.25)}%`, to: `${Math.round(pr * 100)}%` });
+      if (cur.agentRate !== ar) changes.push({ label: 'Agent commission', from: `${asPct(cur.agentRate, 0.1)}%`, to: `${Math.round(ar * 100)}%` });
+      if (changes.length) {
+        setConfirm({ input, changes });
+        return;
+      }
+      void applyUpdate(editingId, input);
     } else {
       const rec = addPartner({ name: name.trim(), since: since || undefined, status, partnerRate: pr, agentRate: ar });
       toast(`Partner "${rec.name}" created at ${Math.round(pr * 100)}% partner / ${Math.round(ar * 100)}% agent. Add users, agencies and branches under it next.`);
+      setOpen(false);
+      refresh();
     }
-    setOpen(false);
-    refresh();
   }
 
   return (
@@ -159,8 +208,8 @@ export function PartnerManagement() {
         open={open}
         onClose={() => setOpen(false)}
         title={editingId ? `Manage ${getPartner(editingId)?.name ?? ''}` : 'Add partner'}
-        sub={editingId ? "Adjust this partner’s details and commission. Changes apply across the dashboard and exports." : 'Onboard a new partner company. Users, agencies and branches can be added under it afterwards.'}
-        footer={<><Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" onClick={save}>{editingId ? 'Save changes' : 'Create partner'}</Button></>}
+        sub={editingId ? "Adjust this partner’s details and commission. Rate changes apply to new applications from now on." : 'Onboard a new partner company. Users, agencies and branches can be added under it afterwards.'}
+        footer={<><Button variant="ghost" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : editingId ? 'Save changes' : 'Create partner'}</Button></>}
       >
         <Field label="Partner company name" htmlFor="pm-name"><input id="pm-name" type="text" placeholder="e.g. PrimeLocation" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="Live from" htmlFor="pm-since" hint="Optional"><input id="pm-since" type="month" value={since} onChange={(e) => setSince(e.target.value)} /></Field>
@@ -173,12 +222,48 @@ export function PartnerManagement() {
         </Field>
         <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 2 }}>
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 3 }}>Commission</div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>Each a share of the guarantor fee (one month's rent). Set per partner when signing or amending.</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 12 }}>
+            Each a share of the guarantor fee (one month's rent). These are the rates for <b>new applications from now on</b>. Applications already created keep the rate recorded when they were created, so past settlements and reports never change.
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Field label="Partner commission %" htmlFor="pm-partner-rate"><input id="pm-partner-rate" type="number" step="0.5" min="0" max="100" placeholder="25" value={partnerRate} onChange={(e) => setPartnerRate(e.target.value)} /></Field>
             <Field label="Agent commission %" htmlFor="pm-agent-rate"><input id="pm-agent-rate" type="number" step="0.5" min="0" max="100" placeholder="10" value={agentRate} onChange={(e) => setAgentRate(e.target.value)} /></Field>
           </div>
         </div>
+
+        {editingId && audit.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 16 }}>
+            <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Recent changes</div>
+            <ul className="pm-audit">
+              {audit.map((e, i) => (
+                <li key={i} className="pm-audit__row">
+                  <span className="pm-audit__field">{auditField(e.field)}</span>
+                  <span className="pm-audit__delta">{e.oldValue} → <b>{e.newValue}</b></span>
+                  <span className="pm-audit__meta">{e.actor} · {dmy(e.at)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!confirm}
+        onClose={() => setConfirm(null)}
+        width={460}
+        title="Confirm commission change"
+        sub="This sets the rate for new applications from now on. Existing applications keep the rate recorded when they were created, so past settlements and reports are unaffected."
+        footer={<><Button variant="ghost" onClick={() => setConfirm(null)} disabled={saving}>Back</Button><Button variant="primary" onClick={() => confirm && editingId && applyUpdate(editingId, confirm.input)} disabled={saving}>{saving ? 'Saving…' : 'Confirm change'}</Button></>}
+      >
+        <ul className="pm-confirm">
+          {confirm?.changes.map((c) => (
+            <li key={c.label} className="pm-confirm__row">
+              <span className="pm-confirm__label">{c.label}</span>
+              <span className="pm-confirm__delta"><span className="pm-confirm__from">{c.from}</span> → <b className="pm-confirm__to">{c.to}</b></span>
+            </li>
+          ))}
+        </ul>
+        <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginTop: 4 }}>This change is recorded in the partner's audit trail.</p>
       </Modal>
     </>
   );

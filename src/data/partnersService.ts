@@ -9,10 +9,11 @@
    GET/POST/PATCH /partners. getSelected/setSelected stay client-side
    (a UI preference). scopeFor mirrors the server's partner-isolation rule.
    ===================================================================== */
-import type { CommissionRates, Partner, PartnerScope, Role } from './types';
+import type { CommissionRates, Partner, PartnerScope, PartnerStatus, Role } from './types';
 import { ALL_PARTNERS } from './types';
 import { KEYS, clone, loadJSON, loadString, saveJSON, saveString } from './storage';
 import { DEFAULT_AGENT_RATE, DEFAULT_PARTNER_RATE, HOME_PARTNER, PARTNERS_SEED } from './mock/partners';
+import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 
 // Working copy, seeded from localStorage or the seed. The only place the list lives.
 let PARTNERS: Partner[] = loadJSON<Partner[]>(KEYS.partners, clone(PARTNERS_SEED));
@@ -95,6 +96,94 @@ export function updatePartner(id: string, changes: Partial<Partner>): Partner | 
   });
   persist();
   return p;
+}
+
+/* ---- Governed partner-settings edit (rates, status, live-from) with audit ----
+   Rate edits change ONLY the partner's live rate, used by NEW applications from
+   now on. Existing applications keep their snapshotted rate (see FullApp /
+   create_referral), so no historical figure moves. Every changed field is
+   recorded to an immutable audit trail (who, when, old -> new). */
+export interface PartnerSettingsInput {
+  name: string;
+  status: PartnerStatus;
+  since: string; // 'YYYY-MM' or ''
+  partnerRate: number; // fraction of one month's rent
+  agentRate: number;
+}
+
+export interface PartnerAuditEntry {
+  field: 'partner_rate' | 'agent_rate' | 'status' | 'live_from' | 'name' | string;
+  oldValue: string;
+  newValue: string;
+  actor: string;
+  at: Date;
+}
+
+// Mock/test audit store, keyed by partner id (slug). Supabase mode uses the
+// partner_audit table + update_partner_settings RPC instead.
+const PARTNER_AUDIT: Record<string, PartnerAuditEntry[]> = {};
+const pct = (f: number): string => `${Math.round(f * 100)}%`;
+
+/**
+ * Persist a partner-settings edit. Supabase mode calls the update_partner_settings
+ * RPC (admin + AAL2 enforced; writes the audit rows and updates the partner in one
+ * transaction). Mock mode records the diffs to the in-memory audit and updates the
+ * working copy. Existing applications are never touched, by design.
+ */
+export async function updatePartnerSettings(id: string, next: PartnerSettingsInput): Promise<void> {
+  const cur = getPartner(id);
+  if (!cur) throw new Error('Partner not found.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('update_partner_settings', {
+      p_slug: id,
+      p_name: next.name,
+      p_status: next.status,
+      p_live_from: next.since ? `${next.since}-01` : null,
+      p_partner_rate: next.partnerRate,
+      p_agent_rate: next.agentRate,
+    });
+    if (error) throw new Error(error.message);
+    return; // caller re-hydrates (session.refresh) to pick up the new live rate
+  }
+  // Mock mode: record the audit diffs, then update the working copy.
+  const who = 'You';
+  const entries: PartnerAuditEntry[] = [];
+  const add = (field: PartnerAuditEntry['field'], oldValue: string, newValue: string) =>
+    entries.push({ field, oldValue, newValue, actor: who, at: new Date() });
+  if (cur.partnerRate !== next.partnerRate) add('partner_rate', pct(cur.partnerRate), pct(next.partnerRate));
+  if (cur.agentRate !== next.agentRate) add('agent_rate', pct(cur.agentRate), pct(next.agentRate));
+  if (cur.status !== next.status) add('status', cur.status, next.status);
+  if ((cur.since || '') !== (next.since || '')) add('live_from', cur.since || '—', next.since || '—');
+  if (cur.name !== next.name) add('name', cur.name, next.name);
+  if (entries.length) PARTNER_AUDIT[id] = [...entries, ...(PARTNER_AUDIT[id] ?? [])];
+  // Pass since as-is (not `|| undefined`) so clearing Live-from actually clears it
+  // and matches the audit entry recorded above.
+  updatePartner(id, {
+    name: next.name, status: next.status, since: next.since,
+    partnerRate: next.partnerRate, agentRate: next.agentRate,
+  });
+}
+
+/** Recent partner-change audit entries (most recent first). Admin-scoped. */
+export async function getPartnerAudit(id: string): Promise<PartnerAuditEntry[]> {
+  if (SUPABASE_ENABLED) {
+    const { data, error } = await sb()
+      .from('partner_audit')
+      .select('field, old_value, new_value, actor, at, partner:partners!inner(slug)')
+      .eq('partner.slug', id)
+      .order('at', { ascending: false })
+      .limit(20);
+    if (error) throw new Error(error.message);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (data ?? []).map((r: any) => ({
+      field: r.field,
+      oldValue: r.old_value ?? '',
+      newValue: r.new_value ?? '',
+      actor: r.actor ?? 'opndoor admin',
+      at: new Date(r.at),
+    }));
+  }
+  return PARTNER_AUDIT[id] ?? [];
 }
 
 /** Per-partner commission rates for a scope. For "all", returns the primary partner's rates. */

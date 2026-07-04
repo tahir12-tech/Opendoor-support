@@ -122,9 +122,17 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
   const isRef = role === 'referrer';
   const a: LiveAgg = liveAggregate(role, scope, period);
   const vol = liveVolume(role, scope, period);
-  const rates = getRatesFor(scope);
-  const pPct = Math.round(rates.partner * 100);
-  const aPct = Math.round(rates.agent * 100);
+  // Descriptor percentages are the EFFECTIVE rate implied by the actual snapshotted
+  // commission (gross commission / gross fees), never the partner's live rate, so
+  // the "% of one month's rent" label always reconciles with the £ figure beside it
+  // and never moves when a partner's live rate is later edited. Only when the period
+  // has no fees at all (nothing to reconcile) do we fall back to the current headline
+  // rate as an indicative label.
+  const live = getRatesFor(scope);
+  const effPct = (net: number, excl: number, fallback: number) =>
+    a.feesGross ? Math.round(((net + excl) / a.feesGross) * 100) : Math.round(fallback * 100);
+  const pPct = effPct(a.partnerCommNet, a.partnerCommExcl, live.partner);
+  const aPct = effPct(a.agentCommNet, a.agentCommExcl, live.agent);
   // Under an all-partners scope the £ amounts blend per-partner rates, so a single
   // "%" descriptor would not reconcile with the figure - label it per-partner.
   const blended = !isRef && scope === ALL_PARTNERS;

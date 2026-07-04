@@ -89,7 +89,7 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
       'id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, ' +
         'tenant_dob, tenant_email, tenant_phone, ' +
         'prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, ' +
-        'monthly_rent, status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
+        'monthly_rent, partner_rate, agent_rate, status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'deed_state, deed_sent_at, deed_viewed_at, expiry_reminders_sent, ' +
         'referrer_id, branch_id, agency_id, partner_id, ' +
@@ -109,6 +109,10 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
   const apps = (appsRes.data ?? []) as any[];
 
   const partnerSlug = new Map<string, string>(partners.map((p) => [p.id, p.slug]));
+  // Fallback rates by partner (only used if a row somehow lacks its snapshot;
+  // the applications columns are NOT NULL, so this is belt-and-braces).
+  const partnerRateById = new Map<string, number>(partners.map((p) => [p.id, num(p.partner_rate)]));
+  const agentRateById = new Map<string, number>(partners.map((p) => [p.id, num(p.agent_rate)]));
   const slugOfApp = (a: any): string => emb(a.partner)?.slug ?? partnerSlug.get(a.partner_id) ?? '';
   const fullName = (a: any): string => `${a.tenant_first_name} ${a.tenant_last_name}`;
   const ownerFlag = (a: any): number => (a.referrer_id === userId ? 1 : 0);
@@ -239,6 +243,8 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
     owner: ownerFlag(a),
     status: a.status as Status,
     rent: num(a.monthly_rent),
+    partnerRate: a.partner_rate != null ? num(a.partner_rate) : (partnerRateById.get(a.partner_id) ?? 0),
+    agentRate: a.agent_rate != null ? num(a.agent_rate) : (agentRateById.get(a.partner_id) ?? 0),
     sentAt: toDate(a.sent_at),
     paidAt: toDate(a.paid_at),
     deedAt: toDate(a.deed_issued_at),

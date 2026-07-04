@@ -186,9 +186,13 @@ function buildLivePerformanceDoc(role: Role, period: Period): BrandedExport {
   const scope = scopeFor(role);
   const a = liveAggregate(role, scope, period);
   const vol = liveVolume(role, scope, period);
-  const r = getRatesFor(scope);
-  const pPct = Math.round(r.partner * 100);
-  const aPct = Math.round(r.agent * 100);
+  // Header percentages are the EFFECTIVE rate implied by the actual snapshotted
+  // commission (gross commission / gross fees), never a live partner rate, so the
+  // label always matches the money below even after a partner's rate has been
+  // changed and even for an all-partners scope with a mix of snapshotted rates.
+  // Gross/gross (not net/net) keeps it exact regardless of partial refunds.
+  const pPct = a.feesGross ? Math.round(((a.partnerCommNet + a.partnerCommExcl) / a.feesGross) * 100) : 0;
+  const aPct = a.feesGross ? Math.round(((a.agentCommNet + a.agentCommExcl) / a.feesGross) * 100) : 0;
   // Live breakdown columns carry net commission per row (partner + agent), so the
   // agency/branch/referrer tables reconcile to the summary commission totals.
   const LIVE_BREAKDOWN_COLS = (first: string, showParent: boolean, comm: [string, string]): Column[] => [
@@ -613,9 +617,10 @@ function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis,
     if (inRange(a.paidAt, start, end)) ev.push('Paid');
     if (inRange(a.deedAt, start, end)) ev.push('Deed Issued');
     const payState = a.refunded ? 'Refunded' : a.paidAt ? 'Paid' : 'Awaiting payment';
-    const rates = getRatesFor(a.partner);
-    const partnerComm = a.refunded ? 0 : a.rent * rates.partner;
-    const agentComm = a.refunded ? 0 : a.rent * rates.agent;
+    // Each application's SNAPSHOTTED rates (frozen at creation), so an export of a
+    // past period reproduces exactly what was payable then, immune to later edits.
+    const partnerComm = a.refunded ? 0 : a.rent * a.partnerRate;
+    const agentComm = a.refunded ? 0 : a.rent * a.agentRate;
     const row: TableRow = [
       partnerName(a.partner), a.ref, a.agency, a.branch, a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',

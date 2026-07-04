@@ -10,7 +10,9 @@ import { liveLeague, liveTrend } from '@/data/liveAnalytics';
 
 const D = (s: string) => new Date(s);
 function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'partner' | 'agency' | 'branch'>): FullApp {
+  const rates = getRatesFor(o.partner); // snapshot = the partner's rate at creation
   return {
+    partnerRate: rates.partner, agentRate: rates.agent,
     referrer: 'R', owner: 0, status: 'paid',
     sentAt: D('2026-02-01'), paidAt: D('2026-02-03'), deedAt: null, tenancyStart: null, expiry: null,
     refunded: false, refundedAt: null, refundedAmount: null, refundAfterStart: false,

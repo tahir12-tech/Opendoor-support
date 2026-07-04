@@ -10,7 +10,9 @@ import type { AppRecord } from '@/data/mock/applications';
 
 const D = (s: string) => new Date(s);
 function full(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'partner' | 'status'>): FullApp {
+  const rates = getRatesFor(o.partner); // snapshot = the partner's rate at creation
   return {
+    partnerRate: rates.partner, agentRate: rates.agent,
     agency: 'Ag', branch: 'Br', referrer: 'R', owner: 0,
     sentAt: null, paidAt: null, deedAt: null, tenancyStart: null, expiry: null,
     refunded: false, refundedAt: null, refundedAmount: null, refundAfterStart: false,

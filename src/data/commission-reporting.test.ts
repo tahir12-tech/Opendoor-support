@@ -10,7 +10,9 @@ import { liveAggregate, livePartnerBreakdown, getAgentCommissionSettlement } fro
 
 const D = (s: string) => new Date(s);
 function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'status' | 'partner'>): FullApp {
+  const rates = getRatesFor(o.partner); // snapshot = the partner's rate at creation
   return {
+    partnerRate: rates.partner, agentRate: rates.agent,
     agency: 'Foxglove', branch: 'South Kensington', referrer: 'Priya', owner: 0,
     sentAt: null, paidAt: null, deedAt: null, tenancyStart: null, expiry: null,
     refunded: false, refundedAt: null, refundedAmount: null, refundAfterStart: false,

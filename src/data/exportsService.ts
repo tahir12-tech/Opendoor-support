@@ -381,8 +381,6 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
   if (liveAvailable()) return buildLivePerformanceDoc(role, period);
   const m = exportModel(role, period);
   const xrates = getRatesFor(scopeFor(role));
-  const pPct = Math.round(xrates.partner * 100);
-  const aPct = Math.round(xrates.agent * 100);
   const sB = bands(m.stuckSent, [0.55, 0.3]);
   const pB = bands(m.stuckPaid, [0.5, 0.33]);
 
@@ -399,8 +397,8 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
         { label: 'Conversion: Sent to Deed', value: m.sent ? m.deed / m.sent : 0, type: 'pct' },
         { label: 'Total guaranteed rent value', value: m.deed * ANNUAL, type: 'money' },
         { label: 'Guarantor fees collected', value: m.fees, type: 'money' },
-        { label: `Partner commission (${pPct}% of one month rent)`, value: m.fees * xrates.partner, type: 'money' },
-        { label: `Agent commission (${aPct}% of one month rent)`, value: m.fees * xrates.agent, type: 'money' },
+        { label: 'Partner commission (share of one month rent)', value: m.fees * xrates.partner, type: 'money' },
+        { label: 'Agent commission (share of one month rent)', value: m.fees * xrates.agent, type: 'money' },
         { label: 'Average monthly rent', value: AVG_RENT, type: 'money' },
         { label: 'Average guarantor fee', value: m.paid ? m.fees / m.paid : 0, type: 'money' },
         { label: 'Total deeds issued', value: m.deed, type: 'int' },
@@ -617,10 +615,13 @@ function buildRealApplicationDoc(role: Role, period: Period, basis: ExportBasis,
     if (inRange(a.paidAt, start, end)) ev.push('Paid');
     if (inRange(a.deedAt, start, end)) ev.push('Deed Issued');
     const payState = a.refunded ? 'Refunded' : a.paidAt ? 'Paid' : 'Awaiting payment';
-    // Each application's SNAPSHOTTED rates (frozen at creation), so an export of a
-    // past period reproduces exactly what was payable then, immune to later edits.
-    const partnerComm = a.refunded ? 0 : a.rent * a.partnerRate;
-    const agentComm = a.refunded ? 0 : a.rent * a.agentRate;
+    // Commission is only earned once the guarantor fee is actually collected, so
+    // it is zero until Paid and zero again if refunded (never-paid and refunded
+    // rows both read £0, not earned-looking money). Rates are the application's
+    // SNAPSHOT (frozen at creation), so a past-period export stays immune to edits.
+    const earned = !!a.paidAt && !a.refunded;
+    const partnerComm = earned ? a.rent * a.partnerRate : 0;
+    const agentComm = earned ? a.rent * a.agentRate : 0;
     const row: TableRow = [
       partnerName(a.partner), a.ref, a.agency, a.branch, a.referrer, STATUS[a.status], payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',

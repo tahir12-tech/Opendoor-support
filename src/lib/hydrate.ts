@@ -10,7 +10,7 @@
    ===================================================================== */
 import { sb } from '@/lib/supabase';
 import {
-  hydratePartners, hydrateUsers, hydrateOrg, hydrateApplications, hydrateUpcoming, hydrateFull,
+  hydratePartners, hydrateUsers, hydrateOrg, hydrateApplications, hydrateUpcoming, hydrateFull, hydrateSettings,
   type Agency, type AgentContact, type ApplicationSummary, type Branch, type FullApp, type ManagedUser,
   type Partner, type Status,
 } from '@/data';
@@ -317,4 +317,19 @@ export async function hydrateFromSupabase(userId: string): Promise<void> {
   hydrateApplications(listOut, recordsOut);
   hydrateUpcoming(upcomingOut);
   hydrateFull(fullOut);
+
+  // App settings (admin-only via RLS; returns nothing for others, so the service
+  // keeps its default). Separate from the base load: small and role-scoped.
+  const settingsRes = await client
+    .from('app_settings')
+    .select('num_value, updated_by_name, updated_at')
+    .eq('key', 'bordereau_insurance_rate')
+    .maybeSingle();
+  if (settingsRes.data) {
+    hydrateSettings({
+      rate: num(settingsRes.data.num_value),
+      changedAt: settingsRes.data.updated_at ? new Date(settingsRes.data.updated_at) : null,
+      changedBy: settingsRes.data.updated_by_name ?? null,
+    });
+  }
 }

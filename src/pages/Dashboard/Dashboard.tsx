@@ -12,10 +12,10 @@ import { Link } from 'react-router-dom';
 import {
   ALL_PARTNERS, buildApplicationDoc, buildBordereauCsv, buildPerformanceDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, partnerName,
+  getBordereauRate, getBordereauRateMeta, setBordereauRate,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
 import { BASIS_META, type ExportBasis } from '@/data';
-import { DEFAULT_INSURANCE_RATE } from '@/data/mock/analyticsModel';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -28,6 +28,7 @@ import { RoleOnly } from '@/components/ui/RoleOnly';
 import { RoleNote } from '@/components/ui/RoleNote';
 import { BarChart, type BarRow } from '@/components/ui/BarChart';
 import { MeasureSelect, PeriodSelect, TrendSelect } from '@/components/ui/Select';
+import { useToast } from '@/components/ui/Toast';
 import './Dashboard.css';
 
 type ChartKey = 'branch' | 'agency' | 'referrer';
@@ -73,6 +74,7 @@ function buildChartRows(key: ChartKey, rows: LeagueRow[], m: Measure): { bars: B
 export function Dashboard() {
   usePageMeta('dashboard', 'Dashboard', ['Home', 'Dashboard']);
   const { role, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod } = useSession();
+  const toast = useToast();
 
   // Every figure comes from getDashboardData: live records in Supabase mode
   // (d.live), the deterministic synthetic model in mock/test mode.
@@ -168,12 +170,15 @@ export function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawTrend, trendView, trendMeasure]);
   const trendTopIndex = trendView === 'month' ? trendRows.length - 1 : 0;
-  const trendSub = `${measureLabel(trendMeasure)} · ${trendView === 'month' ? 'last 12 months' : `by ${trendView} · last 12 months`}`;
+  // Entity views (branch/agency/referrer) are 12-month TOTALS, not a monthly
+  // series, so the caption states that explicitly (the bars have no time axis by design).
+  const trendSub = `${measureLabel(trendMeasure)} · ${trendView === 'month' ? 'last 12 months' : `by ${trendView} · total over the last 12 months`}`;
 
   // ---- exports ----
   const [bdxOpen, setBdxOpen] = useState(false);
   const [bdxMonth, setBdxMonth] = useState('2026-06');
-  const [bdxRate, setBdxRate] = useState(String(DEFAULT_INSURANCE_RATE));
+  const [bdxRate, setBdxRate] = useState(String(getBordereauRate()));
+  const [bdxBusy, setBdxBusy] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
   const [appsBasis, setAppsBasis] = useState<ExportBasis>('referred');
 
@@ -185,12 +190,29 @@ export function Dashboard() {
     if (built) void exportBranded(built);
     setAppsOpen(false);
   }
-  function exportBordereau() {
+  function openBordereau() {
+    // Default to the stored rate (not a hard-coded value), so it no longer reverts.
+    setBdxRate(String(getBordereauRate()));
+    setBdxOpen(true);
+  }
+  async function exportBordereau() {
+    if (bdxBusy) return;
     const mv = (bdxMonth || '2026-06').split('-');
-    const rate = parseFloat(bdxRate);
-    const out = buildBordereauCsv(role, +mv[0], +mv[1] - 1, isNaN(rate) ? DEFAULT_INSURANCE_RATE : rate);
-    if (out) downloadCsv(out.csv, out.filename);
-    setBdxOpen(false);
+    const parsed = parseFloat(bdxRate);
+    const rate = isNaN(parsed) ? getBordereauRate() : parsed;
+    setBdxBusy(true);
+    try {
+      // Persist the applied rate (audited if it changed) so the next export defaults
+      // to it and there is a record of what was applied when, and by whom.
+      await setBordereauRate(rate);
+      const out = buildBordereauCsv(role, +mv[0], +mv[1] - 1, rate);
+      if (out) downloadCsv(out.csv, out.filename);
+      setBdxOpen(false);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not save the insurance rate.');
+    } finally {
+      setBdxBusy(false);
+    }
   }
 
   return (
@@ -221,7 +243,7 @@ export function Dashboard() {
             </Button>
           </RoleOnly>
           <RoleOnly roles={['superadmin']}>
-            <Button variant="primary" size="sm" onClick={() => setBdxOpen(true)} title="Monthly underwriter bordereau (C&C format) with full tenant details. opndoor admin only.">
+            <Button variant="primary" size="sm" onClick={openBordereau} title="Monthly underwriter bordereau (C&C format) with full tenant details. opndoor admin only.">
               <Icon name="shield" /> Bordereau
             </Button>
           </RoleOnly>
@@ -680,7 +702,10 @@ export function Dashboard() {
                   <input type="number" id="bdx-rate" step="0.1" min="0" max="100" value={bdxRate} onChange={(e) => setBdxRate(e.target.value)} />
                   <span>%</span>
                 </div>
-                <span className="hint">A single configurable rate applied to all rows. Change here when the underwriter rate changes.</span>
+                <span className="hint">
+                  {(() => { const m = getBordereauRateMeta(); return `Current rate: ${m.rate}%${m.changedAt ? ` · last changed ${dmyShort(m.changedAt)} by ${m.changedBy ?? 'an administrator'}` : ' (default)'}.`; })()}
+                  {' '}Changing it here saves the new rate for future exports and records who changed it and when.
+                </span>
               </div>
               <div className="bdx__warn">
                 <Icon name="alert" />
@@ -688,8 +713,8 @@ export function Dashboard() {
               </div>
             </div>
             <div className="bdx__foot">
-              <Button variant="ghost" onClick={() => setBdxOpen(false)}>Cancel</Button>
-              <Button variant="primary" onClick={exportBordereau}>Export bordereau</Button>
+              <Button variant="ghost" onClick={() => setBdxOpen(false)} disabled={bdxBusy}>Cancel</Button>
+              <Button variant="primary" onClick={exportBordereau} disabled={bdxBusy}>{bdxBusy ? 'Saving…' : 'Export bordereau'}</Button>
             </div>
           </div>
         </div>

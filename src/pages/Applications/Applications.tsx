@@ -5,7 +5,7 @@
    click through to the detail view. Partner isolation + the referrer
    "own referrals only" rule live in applicationsService.
    ===================================================================== */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agencyNamesForScope, agencyOfBranch, branchNamesForScope, countByStatus, getApplications, getPartners,
@@ -33,6 +33,26 @@ function fmtDate(iso: string): string {
 }
 function initials(name: string): string {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('');
+}
+
+/** A filter pill whose WHOLE surface is the trigger: a transparent select is
+    overlaid across the pill, so clicking the label, value or caret opens it. */
+function FilterChip({ icon, label, display, value, onChange, children }: {
+  icon: ReactNode;
+  label: string;
+  display: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  children: ReactNode;
+}) {
+  return (
+    <span className="fchip">
+      {icon}
+      <span className="fchip__text">{label} <b>{display}</b></span>
+      <Icon name="chevronDown" className="fchip__caret" />
+      <select value={value} onChange={onChange} aria-label={label}>{children}</select>
+    </span>
+  );
 }
 
 export function Applications() {
@@ -152,36 +172,28 @@ export function Applications() {
         </div>
         <div className="filterchips">
           {showPartner && (
-            <span className="fchip">
-              <Icon name="shield" />Partner:{' '}
-              <select value={partner} onChange={(e) => { setPartner(e.target.value); setAgency(''); setBranch(''); }}>
-                <option value="">All</option>
-                {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </span>
-          )}
-          <span className="fchip">
-            <Icon name="building" />Agency:{' '}
-            <select value={agency} onChange={(e) => { setAgency(e.target.value); setBranch(''); }}>
+            <FilterChip icon={<Icon name="shield" />} label="Partner:" display={partner ? partnerName(partner) : 'All'} value={partner}
+              onChange={(e) => { setPartner(e.target.value); setAgency(''); setBranch(''); }}>
               <option value="">All</option>
-              {agencyOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </span>
-          <span className="fchip">
-            <Icon name="home" />Branch:{' '}
-            <select value={branch} onChange={(e) => setBranch(e.target.value)}>
-              <option value="">{agency ? 'All branches' : 'All'}</option>
-              {branchOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </span>
-          <span className="fchip">
-            <Icon name="chevronDown" />Sort:{' '}
-            <select value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option>Newest first</option>
-              <option>Oldest first</option>
-              <option>Rent: high to low</option>
-            </select>
-          </span>
+              {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </FilterChip>
+          )}
+          <FilterChip icon={<Icon name="building" />} label="Agency:" display={agency || 'All'} value={agency}
+            onChange={(e) => { setAgency(e.target.value); setBranch(''); }}>
+            <option value="">All</option>
+            {agencyOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+          </FilterChip>
+          <FilterChip icon={<Icon name="home" />} label="Branch:" display={branch || (agency ? 'All branches' : 'All')} value={branch}
+            onChange={(e) => setBranch(e.target.value)}>
+            <option value="">{agency ? 'All branches' : 'All'}</option>
+            {branchOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+          </FilterChip>
+          <FilterChip icon={<Icon name="chevronDown" />} label="Sort:" display={sort} value={sort}
+            onChange={(e) => setSort(e.target.value)}>
+            <option>Newest first</option>
+            <option>Oldest first</option>
+            <option>Rent: high to low</option>
+          </FilterChip>
         </div>
         <span className="countline">Showing <b>{visibleRows.length}</b> of <b>{total}</b></span>
       </div>

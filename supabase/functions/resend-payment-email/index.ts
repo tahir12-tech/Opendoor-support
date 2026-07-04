@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // RLS ensures only the owning Referrer / Management in-partner / admin can read it.
     const { data: app, error } = await userClient
       .from("applications")
-      .select("id, guarantee_ref, tenant_first_name, tenant_last_name, tenant_email, monthly_rent, status, payment_url")
+      .select("id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, monthly_rent, status, payment_url")
       .eq("guarantee_ref", ref).maybeSingle();
     if (error) return json({ ok: false, error: error.message }, 400);
     if (!app) return json({ ok: false, error: "Application not found, or you do not have access to it." }, 404);
@@ -51,8 +51,11 @@ Deno.serve(async (req) => {
     if (!app.payment_url) return json({ ok: false, error: "No payment link exists for this application yet." }, 400);
 
     const rent = Number(app.monthly_rent);
+    const propertyAddr = [app.prop_addr1, app.prop_postcode].filter(Boolean).join(", ");
     const tpl = paymentEmailTemplate({
-      tenantName: `${app.tenant_first_name} ${app.tenant_last_name}`,
+      title: app.tenant_title ?? "",
+      lastName: app.tenant_last_name,
+      propertyAddr,
       guaranteeRef: app.guarantee_ref,
       amount: `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`,
       payUrl: app.payment_url,
@@ -61,15 +64,25 @@ Deno.serve(async (req) => {
     const emailRes = await sendEmail({ subject: tpl.subject, html: tpl.html });
 
     const service = createClient(SUPABASE_URL, SERVICE);
+    // Partner-safe business message; test-mode redirect target stays admin-only.
     await service.from("activity_log").insert({
       application_id: app.id,
       kind: emailRes.ok ? "payment_email_resent" : "payment_email_failed",
-      message: emailRes.ok ? `Payment email resent (test mode) to ${emailRes.to} by ${actor}.` : `Payment email resend failed: ${emailRes.error}`,
+      message: emailRes.ok ? `Payment email resent to the tenant by ${actor}.` : `Payment email resend failed: ${emailRes.error}`,
       actor,
       // A failure carries the raw provider error, so keep it opndoor-admin-only
       // (the partner-safe copy is shown on the payment card). Success is business.
       visibility: emailRes.ok ? "business" : "internal",
     });
+    if (emailRes.ok && emailRes.to) {
+      await service.from("activity_log").insert({
+        application_id: app.id,
+        kind: "payment_email_resent",
+        message: `Redirected to ${emailRes.to} (test mode).`,
+        actor,
+        visibility: "internal",
+      });
+    }
 
     if (!emailRes.ok) return json({ ok: false, error: emailRes.error }, 200);
     return json({ ok: true, to: emailRes.to });

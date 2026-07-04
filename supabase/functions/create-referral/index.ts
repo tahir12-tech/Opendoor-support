@@ -67,8 +67,10 @@ Deno.serve(async (req) => {
     const appId = app.id as string;
     const ref = app.guarantee_ref as string;
     const rent = Number(app.monthly_rent);
-    const tenantName = `${app.tenant_first_name} ${app.tenant_last_name}`;
     const tenantEmail = app.tenant_email as string;
+    const tenantTitle = (app.tenant_title as string) ?? "";
+    const tenantLast = app.tenant_last_name as string;
+    const propertyAddr = [app.prop_addr1, app.prop_postcode].filter(Boolean).join(", ");
     const amountGBP = `£${rent.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
     // Stripe test-mode Checkout Session for the guarantor fee (one month's rent).
@@ -98,15 +100,27 @@ Deno.serve(async (req) => {
     await service.from("activity_log").insert({ application_id: appId, kind: "referral_created", message: "Referral created and sent to the tenant.", actor });
 
     // Branded payment email (redirected to the review address in test mode).
-    const tpl = paymentEmailTemplate({ tenantName, guaranteeRef: ref, amount: amountGBP, payUrl: session.url!, intendedFor: tenantEmail });
+    const tpl = paymentEmailTemplate({ title: tenantTitle, lastName: tenantLast, propertyAddr, guaranteeRef: ref, amount: amountGBP, payUrl: session.url!, intendedFor: tenantEmail });
     const emailRes = await sendEmail({ subject: tpl.subject, html: tpl.html });
+    // Partner-safe business message; the test-mode redirect target stays admin-only
+    // (a separate internal entry), so no partner-facing surface exposes the review
+    // address regardless of how it renders the log.
     await service.from("activity_log").insert({
       application_id: appId,
       kind: emailRes.ok ? "payment_email_sent" : "payment_email_failed",
-      message: emailRes.ok ? `Payment email sent (test mode) to ${emailRes.to}.` : `Payment email not sent: ${emailRes.error}`,
+      message: emailRes.ok ? "Payment email sent to the tenant." : `Payment email not sent: ${emailRes.error}`,
       actor: "System",
       visibility: emailRes.ok ? "business" : "internal",
     });
+    if (emailRes.ok && emailRes.to) {
+      await service.from("activity_log").insert({
+        application_id: appId,
+        kind: "payment_email_sent",
+        message: `Redirected to ${emailRes.to} (test mode).`,
+        actor: "System",
+        visibility: "internal",
+      });
+    }
 
     return json({ ok: true, ref, paymentUrl: session.url, emailSent: emailRes.ok, emailError: emailRes.ok ? null : emailRes.error });
   } catch (e) {

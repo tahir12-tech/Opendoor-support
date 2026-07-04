@@ -16,6 +16,7 @@ export * from './activityService';
 export * from './leagueService';
 export * from './exportsService';
 export * from './usersService';
+export * from './settingsService';
 export * from './reconciliationService';
 export * from './addressService';
 export * from './paymentService';

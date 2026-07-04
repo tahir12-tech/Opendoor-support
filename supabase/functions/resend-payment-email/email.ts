@@ -69,7 +69,9 @@ function layout(title: string, inner: string, intendedFor?: string): string {
 }
 
 export function paymentEmailTemplate(p: {
-  tenantName: string;
+  title: string;
+  lastName: string;
+  propertyAddr: string;
   guaranteeRef: string;
   amount: string;
   payUrl: string;
@@ -77,8 +79,8 @@ export function paymentEmailTemplate(p: {
 }): { subject: string; html: string } {
   const subject = `Complete your guarantor fee payment - ${p.guaranteeRef}`;
   const inner = `
-    <p style="margin:0 0 14px;">Dear ${p.tenantName},</p>
-    <p style="margin:0 0 14px;">Your letting agent has referred you to opndoor's professional guarantor service. To put your Deed of Guarantee in place, please pay the guarantor fee below.</p>
+    <p style="margin:0 0 14px;">Dear ${p.title} ${p.lastName},</p>
+    <p style="margin:0 0 14px;">You've been referred to opndoor's professional guarantor service to support your tenancy at ${p.propertyAddr}. To put your Deed of Guarantee in place, please pay the one-off guarantor fee below.</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid rgba(39,29,95,0.12);border-radius:12px;">
       <tr><td style="padding:16px 18px;">
         <div style="font:600 12px -apple-system,Segoe UI,Roboto,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:${INK_SOFT};">Guarantor fee</div>
@@ -89,7 +91,7 @@ export function paymentEmailTemplate(p: {
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 18px;"><tr><td>
       <a href="${p.payUrl}" style="display:inline-block;background:${HELIOTROPE};background-image:linear-gradient(135deg,${HELIOTROPE},${HELIOTROPE_DEEP});color:#ffffff;text-decoration:none;font:700 15px -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:13px 26px;border-radius:10px;">Pay the guarantor fee</a>
     </td></tr></table>
-    <p style="margin:0 0 8px;font-size:13px;color:${INK_SOFT};">What is the guarantor fee? It is a one-off payment for opndoor to act as your professional guarantor, providing a Deed of Guarantee in favour of the property so your tenancy can proceed. Payment is secure and handled by Stripe.</p>
+    <p style="margin:0 0 8px;font-size:13px;color:${INK_SOFT};">It's a one-off payment for opndoor to act as your professional guarantor, providing a Deed of Guarantee in favour of the property so your tenancy can proceed. Payment is secure and handled by Stripe.</p>
     <p style="margin:14px 0 0;font-size:12px;color:${INK_SOFT};">If the button does not work, copy this link into your browser:<br><span style="color:${HELIOTROPE_DEEP};word-break:break-all;">${p.payUrl}</span></p>`;
   return { subject, html: layout(subject, inner, p.intendedFor) };
 }

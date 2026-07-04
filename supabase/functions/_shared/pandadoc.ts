@@ -122,9 +122,14 @@ export async function createAndSend(a: DeedApp): Promise<DeedResult> {
     const subject = a.reissue
       ? `Your updated opndoor Deed of Guarantee, ${a.guarantee_ref}`
       : `Your opndoor Deed of Guarantee, ${a.guarantee_ref}`;
+    // Closing line only on the initial send: a tenant may already have signed via
+    // the payment confirmation page in the same generation window, so this email
+    // can arrive after the fact. A reissue is admin-triggered later with no
+    // confirmation-page path, so that race does not apply and the line is omitted.
+    const alreadySigned = " Already signed? If you've completed your deed through the payment confirmation page, no further action is needed, you can disregard this email.";
     const message = a.reissue
       ? `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your Deed of Guarantee has been updated to reflect a new tenancy start date of ${fmtDate(a.tenancy_start)}. The previous document is now void. Please review and sign this updated document to put your guarantee in place. Reference ${a.guarantee_ref}.`
-      : `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your opndoor guarantor fee has been received and your Deed of Guarantee is ready to sign. Please review and sign the document to put your guarantee in place. Reference ${a.guarantee_ref}.`;
+      : `Dear ${a.tenant_first_name} ${a.tenant_last_name}, your opndoor guarantor fee has been received and your Deed of Guarantee is ready to sign. Please review and sign the document to put your guarantee in place. Reference ${a.guarantee_ref}.${alreadySigned}`;
     const sendRes = await fetch(`${API}/documents/${docId}/send`, {
       method: "POST",
       headers: headers(),

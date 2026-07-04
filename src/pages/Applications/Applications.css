@@ -54,6 +54,7 @@
   flex-wrap: wrap;
 }
 .fchip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -65,17 +66,33 @@
   border-radius: 999px;
   padding: 8px 14px;
   box-shadow: var(--shadow-sm);
+  cursor: pointer;
 }
 .fchip svg {
   width: 13px;
   height: 13px;
   color: var(--ink-mute);
 }
-.fchip select {
-  all: unset;
-  cursor: pointer;
-  font-weight: 700;
+.fchip__text b {
   color: var(--ink);
+  font-weight: 700;
+}
+.fchip__caret {
+  margin-left: -2px;
+}
+/* The whole pill is the trigger: a transparent select overlays the entire chip,
+   so clicking the label, value or caret (not just the value) opens the dropdown. */
+.fchip select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
 }
 .active-filter {
   display: flex;

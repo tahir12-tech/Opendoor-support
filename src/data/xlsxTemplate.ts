@@ -189,4 +189,35 @@ export function downloadXlsx(wb: XLSX.WorkBook, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
+/** #116 Underwriter premium bordereau: grouped two-row headers matching the
+    template. Row 1 = title + premium rate (top-right); row 2 = Reference / Tenant
+    Details / Property Details / Guarantee Details group bands; row 3 = the 18
+    column headers; then data rows. `insuranceRate` is a percent (e.g. 13.5). */
+export function buildBordereauWorkbook(dataRows: (string | number)[][], insuranceRate: number, monthLabel: string): XLSX.WorkBook {
+  const COLS = ['Guarantee Reference', 'Tenant Title', 'First Name', 'Last Name', 'DOB', 'Tenant Role', 'Property Address 1', 'Property Address 2', 'City/Town', 'County', 'Postcode', 'Landlord Name', 'Issue Date', 'Tenancy date', 'Guarantee Expiry', 'Monthly Rent', 'Insurance %', 'Status'];
+  const NC = COLS.length; // 18 (A–R)
+  const blank = (): (string | number)[] => new Array(NC).fill('');
+  const row1 = blank(); row1[0] = `Guarantee Policy Premium Bordereau — ${monthLabel}`; row1[NC - 2] = 'Premium rate'; row1[NC - 1] = insuranceRate / 100;
+  const row2 = blank(); row2[0] = 'Reference'; row2[1] = 'Tenant Details'; row2[6] = 'Property Details'; row2[12] = 'Guarantee Details';
+  const aoa: (string | number)[][] = [row1, row2, [...COLS], ...dataRows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: NC - 3 } }, // title band
+    { s: { r: 1, c: 1 }, e: { r: 1, c: 5 } },      // Tenant Details B–F
+    { s: { r: 1, c: 6 }, e: { r: 1, c: 11 } },     // Property Details G–L
+    { s: { r: 1, c: 12 }, e: { r: 1, c: NC - 1 } }, // Guarantee Details M–R
+  ];
+  ws['!cols'] = COLS.map((h) => ({ wch: Math.max(11, h.length + 2) }));
+  const rateCell = XLSX.utils.encode_cell({ r: 0, c: NC - 1 }); if (ws[rateCell]) (ws[rateCell] as XLSX.CellObject).z = '0.0%';
+  for (let i = 0; i < dataRows.length; i++) {
+    for (const c of [15, 16]) { const k = XLSX.utils.encode_cell({ r: 3 + i, c }); if (ws[k]) (ws[k] as XLSX.CellObject).z = '£#,##0.00'; }
+  }
+  for (let r = 0; r < 3; r++) for (let c = 0; c < NC; c++) {
+    const k = XLSX.utils.encode_cell({ r, c }); if (ws[k]) (ws[k] as XLSX.CellObject).s = { font: { bold: true } };
+  }
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, monthLabel.slice(0, 31));
+  return wb;
+}
+
 export type { XLSX };

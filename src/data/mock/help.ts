@@ -37,6 +37,6 @@ export const HELP_SEED: HelpContent = {
     { id: 'f12', q: 'I have a question that is not answered here.', a: 'Contact your opndoor account manager using the details in the panel on this page, and the partnerships team will help.' },
   ],
   managers: [
-    { id: 'm1', name: '', role: 'opndoor Partnerships', email: 'partners@opndoor.co', phone: '' },
+    { id: 'm1', name: 'opndoor partnerships team', role: 'opndoor Partnerships', email: 'partners@opndoor.co', phone: '' },
   ],
 };

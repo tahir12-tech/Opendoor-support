@@ -29,6 +29,8 @@ export interface ReconRow {
   match: string | null;
   /** True when the match is an exact (case-insensitive) same-name hit. */
   matchExact: boolean;
+  /** #117 True on an agency whose auto "[Agency], Head office" branch is folded into this card. */
+  foldedHeadOffice?: boolean;
 }
 
 function fmtWhen(ts: string): string {
@@ -43,10 +45,10 @@ const MOCK_QUEUE: ReconRow[] = [
   { id: 'agency:m2', entityId: 'm2', type: 'agency', name: 'Marylebone and Co.', parent: null, by: 'Aisha Khan', when: '17/06/2026 · 09:48', refs: 2, match: 'Marylebone & Co', matchExact: false },
   { id: 'branch:m3', entityId: 'm3', type: 'branch', name: 'Wandsworth', parent: 'Hartwell Estates', by: 'Marcus Lin', when: '16/06/2026 · 16:05', refs: 3, match: null, matchExact: false },
   { id: 'agency:m4', entityId: 'm4', type: 'agency', name: 'Camden Town Lettings', parent: null, by: 'Daniel Wright', when: '13/06/2026 · 10:12', refs: 1, match: null, matchExact: false },
-  // #96 A single-office fly-created agency plus its auto "[Agency], Head office"
-  // branch: confirming the agency should sweep this branch in the same action.
-  { id: 'agency:m5', entityId: 'm5', type: 'agency', name: 'Bracken & Vale', parent: null, by: 'Priya Nair', when: '12/06/2026 · 11:30', refs: 1, match: null, matchExact: false },
-  { id: 'branch:m6', entityId: 'm6', type: 'branch', name: 'Bracken & Vale, Head office', parent: 'Bracken & Vale', by: 'Priya Nair', when: '12/06/2026 · 11:30', refs: 1, match: null, matchExact: false },
+  // #117 A single-office fly-created agency: its auto "[Agency], Head office" branch
+  // folds into the agency card (confirming the agency sweeps it), so it is not a
+  // separate queue item — the card notes the folded head office.
+  { id: 'agency:m5', entityId: 'm5', type: 'agency', name: 'Bracken & Vale', parent: null, by: 'Priya Nair', when: '12/06/2026 · 11:30', refs: 1, match: null, matchExact: false, foldedHeadOffice: true },
 ];
 
 /** The pending-review queue (admin only). Async: live RPC or the mock queue. */
@@ -66,6 +68,7 @@ export async function loadReconciliationQueue(): Promise<ReconRow[]> {
       refs: Number(r.referral_count ?? 0),
       match: r.match_name ?? null,
       matchExact: !!r.match_exact,
+      foldedHeadOffice: !!r.folded_head_office,
     }));
   }
   return MOCK_QUEUE.slice();
@@ -108,7 +111,9 @@ export function reconciliationPendingCount(): number {
     let n = 0;
     for (const a of getAgencies(ALL_PARTNERS)) {
       if (a.unreviewed) n += 1;
-      n += (a.branches || []).filter((b) => b.unreviewed).length;
+      // #117 an unreviewed agency's auto head-office folds into its card (not a separate decision).
+      const ho = `${a.name}, head office`.toLowerCase();
+      n += (a.branches || []).filter((b) => b.unreviewed && !(a.unreviewed && b.name.toLowerCase() === ho)).length;
     }
     return n;
   }

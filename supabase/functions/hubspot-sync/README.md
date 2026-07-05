@@ -101,6 +101,14 @@ Association state is tracked in a **per-application role ledger** (`assoc:{app_i
 made immediately and the branch edge is completed on the next event once the org is confirmed — the
 missing edge is never lost to a coarse per-event ledger.
 
+## Commission rates (#14)
+
+Portal-minted companies sync **`commission_rate`** — the agent commission rate (a fraction, e.g. `0.10`)
+for the company's partner, read from `partners.agent_rate` at sync time. The Applicant object also carries a
+**dormant** `partner_commission_rate` mapping (from the snapshotted `applications.partner_rate`): that
+property does not exist on the Applicant object yet and the sandbox token lacks schema-write, so the config
+row ships `active=false` and is activated once the property is created at production promotion.
+
 ## Guardrails
 
 - **§5 never-touch** — the sync writes only its own columns; a defensive `NEVER_TOUCH` filter drops

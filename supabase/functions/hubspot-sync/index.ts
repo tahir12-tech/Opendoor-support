@@ -221,6 +221,9 @@ Deno.serve(async (req) => {
       }
       const agencyKey = `RFL:${String(agency.id).slice(0, 8)}`;
       const single = (org.confirmed_branch_count ?? 0) <= 1;
+      // #14 commission_rate = the agent commission rate (fraction) for this company's partner.
+      const { data: prt } = await service.from("partners").select("agent_rate").eq("id", agency.partner_id).maybeSingle();
+      const commissionRate = prt?.agent_rate != null ? String(prt.agent_rate) : null;
       const co = (vals: Record<string, string | null>) => {
         const props: Record<string, string> = {};
         for (const [logical, value] of Object.entries(vals)) {
@@ -237,6 +240,7 @@ Deno.serve(async (req) => {
         const id = await upsertCompany(agencyKey, co({
           company_key: agencyKey, company_name: agency.name, agency_name: agency.name,
           company_level: "Group HQ / Brand", head_office: "Yes", network_group: agency.group_name,
+          commission_rate: commissionRate,
         }));
         return { agencyKey, branchKey: agencyKey, agencyCoId: id, branchCoId: id, single: true };
       }
@@ -245,6 +249,7 @@ Deno.serve(async (req) => {
       const parentId = await upsertCompany(agencyKey, co({
         company_key: agencyKey, company_name: agency.name, agency_name: agency.name,
         company_level: "Group HQ / Brand", head_office: null, network_group: agency.group_name,
+        commission_rate: commissionRate,
       }));
       let branchKey: string | null = null, branchCoId: string | null = null;
       if (branch && branch.review_state === "confirmed") {
@@ -253,6 +258,7 @@ Deno.serve(async (req) => {
         branchCoId = await upsertCompany(branchKey, co({
           company_key: branchKey, company_name: `${agency.name} — ${branch.name}`, agency_name: agency.name,
           branch_name: branch.name, company_level: "Branch", head_office: isHeadOffice ? "Yes" : "No",
+          commission_rate: commissionRate,
         }));
         // parent-child link: child -> parent ("Parent Company")
         await assocTyped(COMPANIES, branchCoId!, parentId, env.company_parent_category, env.company_parent_type_id);

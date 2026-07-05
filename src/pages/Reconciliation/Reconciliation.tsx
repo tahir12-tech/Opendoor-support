@@ -61,8 +61,11 @@ export function Reconciliation() {
     setBusyId(item.id);
     try {
       await confirmReconEntity(item.type, item.entityId);
+      // #118/#119: nudge an immediate HubSpot sync (fire-and-forget) so the confirmed
+      // org appears in HubSpot within seconds; the 2-minute cron remains the backstop.
+      void triggerHubspotSync().catch(() => {});
       await refreshData(); // re-hydrate so the sidebar pending badge decrements
-      toast(`Confirmed "${item.name}" as a new canonical ${item.type}.`);
+      toast(`Confirmed "${item.name}" as a new canonical ${item.type}. Syncing to HubSpot…`);
       await reload();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not confirm the record.');
@@ -130,6 +133,9 @@ export function Reconciliation() {
                   {item.type === 'agency' ? <span className="tag tag--admin">New agency</span> : <span className="tag">New branch</span>}
                 </div>
                 <div className="rqitem__meta">{parent}created by <b>{item.by}</b> · {item.when} · {item.refs} referral{item.refs === 1 ? '' : 's'} attached</div>
+                {item.foldedHeadOffice && (
+                  <div className="rqitem__meta" style={{ color: 'var(--ink-mute)' }}>Includes its “Head office” branch — confirming the agency confirms both.</div>
+                )}
 
                 {item.match ? (
                   <div className="match">

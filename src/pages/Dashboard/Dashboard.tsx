@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ALL_PARTNERS, buildApplicationDoc, buildBordereauCsv, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
+  ALL_PARTNERS, buildApplicationDoc, exportBordereauFile, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
   fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, partnerName,
   getBordereauRate, getBordereauRateMeta, setBordereauRate, pendingTenancyCorrections,
   type LeagueRow, type Period, type TrendRow,
@@ -240,8 +240,7 @@ export function Dashboard() {
       // Persist the applied rate (audited if it changed) so the next export defaults
       // to it and there is a record of what was applied when, and by whom.
       await setBordereauRate(rate);
-      const out = buildBordereauCsv(role, +mv[0], +mv[1] - 1, rate);
-      if (out) downloadCsv(out.csv, out.filename);
+      await exportBordereauFile(role, +mv[0], +mv[1] - 1, rate);
       setBdxOpen(false);
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not save the insurance rate.');

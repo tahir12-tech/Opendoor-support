@@ -52,7 +52,6 @@ describe('getCommissionSettlement (prior calendar month, net of refunds, payable
 });
 
 describe('buildLiveBordereau (tenancy-start anchored, live rows, frozen format)', () => {
-  const HEADERS = ['Partner', 'Guarantee Reference', 'Tenant Title', 'First Name', 'Last Name', 'DOB', 'Tenant Role', 'Property Address 1', 'Property Address 2', 'City/Town', 'County', 'Postcode', 'Claim Contact (Agent)', 'Issue Date', 'Tenancy Date', 'Guarantee Expiry', 'Monthly Rent', 'Insurance %', 'Status'];
   const rec = (ref: string, o: Partial<AppRecord>): AppRecord => ({
     ref, name: 'John Doe', title: 'Mr', role: '', addr1: '1 Street', postcode: 'E1 1AA', branch: 'Br', agency: 'Ag',
     rent: 1200, status: 'deed', date: '2026-05-10', referrer: 'R', owner: 0,
@@ -73,49 +72,27 @@ describe('buildLiveBordereau (tenancy-start anchored, live rows, frozen format)'
   afterAll(() => { hydrateFull([]); hydrateApplications([], []); });
 
   const out = buildLiveBordereau(2026, 4, 13.5); // May 2026
-  const lines = out.csv.split('\r\n');
-  // Quote-aware CSV parse (money values like "£1,200" contain commas).
-  const unq = (l: string): string[] => {
-    const cells: string[] = [];
-    let cur = '', inQ = false;
-    for (let i = 0; i < l.length; i++) {
-      const ch = l[i];
-      if (inQ) { if (ch === '"') { if (l[i + 1] === '"') { cur += '"'; i++; } else inQ = false; } else cur += ch; }
-      else if (ch === '"') inQ = true;
-      else if (ch === ',') { cells.push(cur); cur = ''; }
-      else cur += ch;
-    }
-    cells.push(cur);
-    return cells;
-  };
-  // Data rows have all 19 columns with the guarantee reference in column 2.
-  const data = lines.map(unq).filter((c) => c.length >= 19 && c[1].startsWith('GR-'));
 
-  it('anchors the month on tenancy commencement date', () => {
-    expect(lines.some((l) => l.includes('May 2026 (by tenancy commencement date)'))).toBe(true);
+  it('anchors the month on tenancy commencement date and buckets it', () => {
+    expect(out.monthLabel).toBe('May 2026');
+    expect(out.issued).toBe(2);
   });
   it('includes only Deed-Issued, non-refunded tenancies commencing in the month', () => {
-    expect(lines.some((l) => l.includes('Guarantees issued') && l.includes('2'))).toBe(true);
-    expect(data.map((c) => c[1]).sort()).toEqual(['GR-1', 'GR-2']); // GR-3 refunded, GR-4 wrong month, GR-5 not deed
+    expect(out.rows.map((r) => r[0]).sort()).toEqual(['GR-1', 'GR-2']); // GR-3 refunded, GR-4 wrong month, GR-5 not deed
   });
-  it('keeps the frozen 19-column header row', () => {
-    const header = lines.find((l) => l.startsWith('"Partner","Guarantee Reference"'));
-    expect(header).toBeTruthy();
-    expect(unq(header!)).toEqual(HEADERS);
-  });
-  it('maps real fields onto the row', () => {
-    const g1 = data.find((c) => c[1] === 'GR-1')!;
-    expect(g1[2]).toBe('Mr'); // title
-    expect(g1[3]).toBe('John'); // first
-    expect(g1[4]).toBe('Doe'); // last
-    expect(g1[5]).toBe('15/01/1990'); // dob dd/mm/yyyy
-    expect(g1[13]).toBe('20/04/2026'); // issue date = deedAt
-    expect(g1[14]).toBe('10/05/2026'); // tenancy date
-    expect(g1[18]).toBe('Deed Issued'); // status
-  });
-  it('Claim Contact never blank: falls back to the agency name when no contact', () => {
-    // No org/contacts hydrated, so contactForApplication resolves nothing.
-    const g1 = data.find((c) => c[1] === 'GR-1')!;
-    expect(g1[12]).toBe('Ag'); // agency name fallback, not empty
+  it('maps real fields onto the 18 template columns (A–R)', () => {
+    const g1 = out.rows.find((r) => r[0] === 'GR-1')!;
+    expect(g1.length).toBe(18);
+    expect(g1[1]).toBe('Mr');            // Tenant Title
+    expect(g1[2]).toBe('John');          // First Name
+    expect(g1[3]).toBe('Doe');           // Last Name
+    expect(g1[4]).toBe('15/01/1990');    // DOB dd/mm/yyyy (always populated)
+    expect(g1[5]).toBe('Tenant');        // Tenant Role
+    expect(g1[11]).toBe('Ag');           // Landlord Name = agency name (#116)
+    expect(g1[12]).toBe('20/04/2026');   // Issue Date = deedAt
+    expect(g1[13]).toBe('10/05/2026');   // Tenancy date
+    expect(g1[15]).toBe(1200);           // Monthly Rent (numeric)
+    expect(g1[16]).toBeCloseTo(1200 * 0.135, 6); // Insurance = rent × rate (£ amount)
+    expect(g1[17]).toBe('On Cover');     // Status vocabulary aligned to the template
   });
 });

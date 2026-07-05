@@ -22,7 +22,6 @@ import {
 } from './mock/analyticsModel';
 import { partnerName, getRatesFor, scopeFor } from './partnersService';
 import { guaranteeExpiry, allFull, findRecord, type FullApp } from './applicationsService';
-import { contactForApplication } from './orgService';
 import { getLeague } from './leagueService';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { periodRange as realPeriodRange, scopeFull, basisInPeriod, inRange } from './paymentMetrics';
@@ -947,45 +946,45 @@ function bxIssuedCount(y: number, m0: number): number {
 /** Live bordereau: real applications whose TENANCY START falls in the month,
     Deed Issued, excluding refunded. Format and columns are frozen identical to
     the synthetic version; only the row source changes. Whole opndoor book. */
-export function buildLiveBordereau(year: number, m0: number, insuranceRate: number): { csv: string; filename: string } {
-  const ratePct = `${insuranceRate}%`;
+// #116 The bordereau matches the "Guarantee Policy Premium Bordereau" template:
+// grouped two-row headers, 18 columns A–R, Landlord Name = agency, Insurance %
+// column = monthly rent × the premium rate as a £ amount (the rate lives in the
+// header block), Status vocabulary = the template's ("On Cover").
+export const BORDEREAU_COLS = [
+  'Guarantee Reference', 'Tenant Title', 'First Name', 'Last Name', 'DOB', 'Tenant Role',
+  'Property Address 1', 'Property Address 2', 'City/Town', 'County', 'Postcode', 'Landlord Name',
+  'Issue Date', 'Tenancy date', 'Guarantee Expiry', 'Monthly Rent', 'Insurance %', 'Status',
+];
+const bxRound2 = (n: number) => Math.round(n * 100) / 100;
+export interface BordereauData { rows: (string | number)[][]; issued: number; monthLabel: string; filename: string }
+
+/** Live bordereau ROWS in the template column order. Deed-Issued, non-refunded
+    tenancies commencing in the month; DOB always populated; Insurance = rent × rate. */
+export function buildLiveBordereau(year: number, m0: number, insuranceRate: number): BordereauData {
+  const rate = insuranceRate / 100;
   const mStart = new Date(year, m0, 1, 0, 0, 0, 0);
   const mEnd = new Date(year, m0 + 1, 0, 23, 59, 59, 999);
   const dobDmy = (iso: string | null | undefined): string => {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso ?? '');
     return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
   };
-  // Tenancies commencing in month M, Deed Issued, not refunded (per the rule).
   const apps = allFull()
     .filter((a) => a.status === 'deed' && !a.refunded && a.tenancyStart && a.tenancyStart >= mStart && a.tenancyStart <= mEnd)
     .sort((x, y) => (x.tenancyStart!.getTime() - y.tenancyStart!.getTime()) || x.ref.localeCompare(y.ref));
-
-  const rows: CsvRow[] = [];
-  rows.push(['opndoor Guarantee Referral Portal — underwriter bordereau (C&C format)']);
-  rows.push(['Generated', new Date().toLocaleString('en-GB')]);
-  rows.push(['Month', `${MONTH_NAMES[m0]} ${year} (by tenancy commencement date)`]);
-  rows.push(['Scope', 'All partners (opndoor whole book). Partner shown per row.']);
-  rows.push(['Guarantees issued', apps.length]);
-  rows.push(['Insurance rate applied', ratePct]);
-  rows.push(['Currency', 'GBP']);
-  rows.push(['Confidential', 'Contains full tenant personal data. For the underwriter only.']);
-  rows.push([]);
-  rows.push(['Partner', 'Guarantee Reference', 'Tenant Title', 'First Name', 'Last Name', 'DOB', 'Tenant Role', 'Property Address 1', 'Property Address 2', 'City/Town', 'County', 'Postcode', 'Claim Contact (Agent)', 'Issue Date', 'Tenancy Date', 'Guarantee Expiry', 'Monthly Rent', 'Insurance %', 'Status']);
-  for (const a of apps) {
+  const rows = apps.map((a): (string | number)[] => {
     const rec = findRecord(a.ref);
-    // Claim Contact (Agent): the resolved agent email, else the agency name so the
-    // required column is never blank (matches the synthetic column).
-    const claimContact = contactForApplication(a.agency, a.branch).contact?.email || a.agency;
     const first = rec?.firstName ?? (rec?.name ? rec.name.split(/\s+/).slice(0, -1).join(' ') : '');
     const last = rec?.lastName ?? (rec?.name ? rec.name.split(/\s+/).slice(-1).join(' ') : '');
     const expiry = a.expiry ?? (a.tenancyStart ? guaranteeExpiry(a.tenancyStart) : null);
-    rows.push([
-      partnerName(a.partner), a.ref, rec?.title ?? '', first, last,
-      dobDmy(rec?.dob), 'Tenant', rec?.addr1 ?? '', rec?.addr2 ?? '', rec?.city ?? '', rec?.county ?? '', rec?.postcode ?? '', claimContact,
-      a.deedAt ? dmy(a.deedAt) : '', a.tenancyStart ? dmy(a.tenancyStart) : '', expiry ? dmy(expiry) : '', gbp(a.rent), ratePct, 'Deed Issued',
-    ]);
-  }
-  return { csv: toCSV(rows), filename: `opndoor-bordereau-${year}-${pad(m0 + 1)}.csv` };
+    return [
+      a.ref, rec?.title ?? '', first, last, dobDmy(rec?.dob), 'Tenant',
+      rec?.addr1 ?? '', rec?.addr2 ?? '', rec?.city ?? '', rec?.county ?? '', rec?.postcode ?? '',
+      a.agency, // Landlord Name = the agency name
+      a.deedAt ? dmy(a.deedAt) : '', a.tenancyStart ? dmy(a.tenancyStart) : '', expiry ? dmy(expiry) : '',
+      a.rent, bxRound2(a.rent * rate), 'On Cover',
+    ];
+  });
+  return { rows, issued: rows.length, monthLabel: `${MONTH_NAMES[m0]} ${year}`, filename: `opndoor-bordereau-${year}-${pad(m0 + 1)}.xlsx` };
 }
 
 /**
@@ -1001,45 +1000,41 @@ export function buildLiveBordereau(year: number, m0: number, insuranceRate: numb
  * correction is a removal or an explicit negative line is a convention pending
  * C&C confirmation). It is not invented here; flagged for review.
  */
-export function buildBordereauCsv(role: Role, year: number, m0: number, insuranceRate: number): { csv: string; filename: string } | null {
-  if (role !== 'superadmin') return null; // strictly gated: blocked even if triggered
-  if (liveAvailable()) return buildLiveBordereau(year, m0, insuranceRate);
-  const ratePct = `${insuranceRate}%`;
+function buildSyntheticBordereau(year: number, m0: number, insuranceRate: number): BordereauData {
+  const rate = insuranceRate / 100;
   const N = bxIssuedCount(year, m0);
   const daysInMonth = new Date(year, m0 + 1, 0).getDate();
-  const rows: CsvRow[] = [];
-  rows.push(['opndoor Guarantee Referral Portal — underwriter bordereau (C&C format)']);
-  rows.push(['Generated', new Date().toLocaleString('en-GB')]);
-  rows.push(['Month', `${MONTH_NAMES[m0]} ${year} (by tenancy commencement date)`]);
-  rows.push(['Scope', 'All partners (opndoor whole book). Partner shown per row.']);
-  rows.push(['Guarantees issued', N]);
-  rows.push(['Insurance rate applied', ratePct]);
-  rows.push(['Currency', 'GBP']);
-  rows.push(['Confidential', 'Contains full tenant personal data. For the underwriter only.']);
-  rows.push([]);
-  rows.push(['Partner', 'Guarantee Reference', 'Tenant Title', 'First Name', 'Last Name', 'DOB', 'Tenant Role', 'Property Address 1', 'Property Address 2', 'City/Town', 'County', 'Postcode', 'Claim Contact (Agent)', 'Issue Date', 'Tenancy Date', 'Guarantee Expiry', 'Monthly Rent', 'Insurance %', 'Status']);
+  const rows: (string | number)[][] = [];
   for (let i = 0; i < N; i++) {
-    // Bucket by TENANCY START in month M (matches the live path); the deed is
-    // issued shortly before the tenancy commences.
     const tenancyDay = 1 + Math.floor((i / N) * (daysInMonth - 1));
     const tenancy = new Date(year, m0, tenancyDay);
     const issue = addDays(tenancy, -(4 + (i % 14)));
-    // Guarantee Expiry is the tenancy date + 12 months - 1 day (one shared rule).
     const expiry = guaranteeExpiry(tenancy);
     const dobYear = 1990 + ((i * 5) % 16);
     const dob = new Date(dobYear, (i * 7) % 12, ((i * 11) % 27) + 1);
     const st = BX_STREETS[(i * 3) % BX_STREETS.length];
     const b = APP_BRANCHES[i % APP_BRANCHES.length];
     const refNo = 40000 + (year * 12 + m0) * 200 + i;
-    const partner = i % 7 === 0 ? 'Zoopla' : i % 11 === 0 ? 'OnTheMarket' : 'Rightmove';
     const flat = BX_FLATS[i % BX_FLATS.length];
+    const rent = APP_RENTS[(i * 7) % APP_RENTS.length];
     rows.push([
-      partner, `GR-${refNo}`, BX_TITLES[i % BX_TITLES.length], BX_FIRST[(i * 5) % BX_FIRST.length], BX_LAST[(i * 3) % BX_LAST.length],
-      dmy(dob), 'Tenant', (flat ? `${flat}, ` : '') + st[0], '', 'London', 'Greater London', st[1], b[1],
-      dmy(issue), dmy(tenancy), dmy(expiry), gbp(APP_RENTS[(i * 7) % APP_RENTS.length]), ratePct, 'Deed Issued',
+      `GR-${refNo}`, BX_TITLES[i % BX_TITLES.length], BX_FIRST[(i * 5) % BX_FIRST.length], BX_LAST[(i * 3) % BX_LAST.length],
+      dmy(dob), 'Tenant', (flat ? `${flat}, ` : '') + st[0], '', 'London', 'Greater London', st[1],
+      String(b[0]), // Landlord Name (demo agency stand-in)
+      dmy(issue), dmy(tenancy), dmy(expiry), rent, bxRound2(rent * rate), 'On Cover',
     ]);
   }
-  return { csv: toCSV(rows), filename: `opndoor-bordereau-${year}-${pad(m0 + 1)}.csv` };
+  return { rows, issued: N, monthLabel: `${MONTH_NAMES[m0]} ${year}`, filename: `opndoor-bordereau-${year}-${pad(m0 + 1)}.xlsx` };
+}
+
+/** opndoor-admin-only. Builds + downloads the monthly premium bordereau as a
+    grouped-header .xlsx matching the underwriter template. Returns false if not permitted. */
+export async function exportBordereauFile(role: Role, year: number, m0: number, insuranceRate: number): Promise<boolean> {
+  if (role !== 'superadmin') return false;
+  const data = liveAvailable() ? buildLiveBordereau(year, m0, insuranceRate) : buildSyntheticBordereau(year, m0, insuranceRate);
+  const { buildBordereauWorkbook, downloadXlsx } = await import('./xlsxTemplate');
+  downloadXlsx(buildBordereauWorkbook(data.rows, insuranceRate, data.monthLabel), data.filename);
+  return true;
 }
 
 /**

@@ -10,6 +10,7 @@
    follows the established SUPABASE_ENABLED pattern.
    ===================================================================== */
 import type { LeagueRow, Period, PartnerScope, Role } from './types';
+import { fmtRatePct } from '@/lib/format';
 import { ALL_PARTNERS } from './types';
 import { KEYS, loadString, saveString } from './storage';
 import {
@@ -133,10 +134,10 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
   // has no fees at all (nothing to reconcile) do we fall back to the current headline
   // rate as an indicative label.
   const live = getRatesFor(scope);
-  const effPct = (net: number, excl: number, fallback: number) =>
-    a.feesGross ? Math.round(((net + excl) / a.feesGross) * 100) : Math.round(fallback * 100);
-  const pPct = effPct(a.partnerCommNet, a.partnerCommExcl, live.partner);
-  const aPct = effPct(a.agentCommNet, a.agentCommExcl, live.agent);
+  const effRate = (net: number, excl: number, fallback: number) =>
+    a.feesGross ? (net + excl) / a.feesGross : fallback;
+  const pPct = fmtRatePct(effRate(a.partnerCommNet, a.partnerCommExcl, live.partner));
+  const aPct = fmtRatePct(effRate(a.agentCommNet, a.agentCommExcl, live.agent));
   // Under an all-partners scope the £ amounts blend per-partner rates, so a single
   // "%" descriptor would not reconcile with the figure - label it per-partner.
   const blended = !isRef && scope === ALL_PARTNERS;
@@ -156,12 +157,12 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     deedcount: a.deed.toLocaleString('en-GB'),
     fees: fmtMoney(a.feesGross),
     commTag: isRef
-      ? `Your agent commission · ${aPct}% of one month's rent, net of refunds`
-      : blended ? `Partner commission · per-partner rates, net of refunds` : `Partner · ${pPct}% of one month's rent, net of refunds`,
+      ? `Your agent commission · ${aPct} of one month's rent, net of refunds`
+      : blended ? `Partner commission · per-partner rates, net of refunds` : `Partner · ${pPct} of one month's rent, net of refunds`,
     commHeadline: isRef ? fmtMoney(a.agentCommNet) : fmtMoney(a.partnerCommNet),
     commSecondLbl: isRef
-      ? `Passed to opndoor as partner (${pPct}%, net)`
-      : blended ? 'Agent commission (per-partner rates, net of refunds)' : `Agent commission (${aPct}% of one month's rent, net)`,
+      ? `Passed to opndoor as partner (${pPct}, net)`
+      : blended ? 'Agent commission (per-partner rates, net of refunds)' : `Agent commission (${aPct} of one month's rent, net)`,
     commSecondVal: isRef ? fmtMoney(a.partnerCommNet) : fmtMoney(a.agentCommNet),
     rent: fmtMoney(a.avgRent),
     stuckSent: a.stuckSent.toLocaleString('en-GB'),
@@ -204,8 +205,8 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
   const kf = paid / basePaid;
   const baseStuck = isRef ? [8, 3] : [74, 27];
   const rates = getRatesFor(scope);
-  const pPct = Math.round(rates.partner * 100);
-  const aPct = Math.round(rates.agent * 100);
+  const pPct = fmtRatePct(rates.partner);
+  const aPct = fmtRatePct(rates.agent);
 
   return {
     sub: isRef
@@ -221,9 +222,9 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     guaranteed: fmtBig(deed * ANNUAL),
     deedcount: deed.toLocaleString('en-GB'),
     fees: fmtMoney(feesNum),
-    commTag: isRef ? `Your agent commission · ${aPct}% of one month's rent` : `Partner · ${pPct}% of one month's rent`,
+    commTag: isRef ? `Your agent commission · ${aPct} of one month's rent` : `Partner · ${pPct} of one month's rent`,
     commHeadline: isRef ? fmtMoney(feesNum * rates.agent) : fmtMoney(feesNum * rates.partner),
-    commSecondLbl: isRef ? `Passed to opndoor as partner (${pPct}%)` : `Agent commission (${aPct}% of one month's rent)`,
+    commSecondLbl: isRef ? `Passed to opndoor as partner (${pPct})` : `Agent commission (${aPct} of one month's rent)`,
     commSecondVal: isRef ? fmtMoney(feesNum * rates.partner) : fmtMoney(feesNum * rates.agent),
     rent: '£2,180',
     stuckSent: Math.round(baseStuck[0] * kc).toString(),

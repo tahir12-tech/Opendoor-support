@@ -10,6 +10,7 @@
    (a UI preference). scopeFor mirrors the server's partner-isolation rule.
    ===================================================================== */
 import type { CommissionRates, LeaderboardMode, Partner, PartnerScope, PartnerStatus, Role } from './types';
+import { fmtRatePct } from '@/lib/format';
 import { ALL_PARTNERS } from './types';
 import { KEYS, clone, loadJSON, loadString, saveJSON, saveString } from './storage';
 import { DEFAULT_AGENT_RATE, DEFAULT_PARTNER_RATE, HOME_PARTNER, PARTNERS_SEED } from './mock/partners';
@@ -122,7 +123,7 @@ export interface PartnerAuditEntry {
 // Mock/test audit store, keyed by partner id (slug). Supabase mode uses the
 // partner_audit table + update_partner_settings RPC instead.
 const PARTNER_AUDIT: Record<string, PartnerAuditEntry[]> = {};
-const pct = (f: number): string => `${Math.round(f * 100)}%`;
+const pct = (f: number): string => fmtRatePct(f);
 
 /**
  * Persist a partner-settings edit. Supabase mode calls the update_partner_settings

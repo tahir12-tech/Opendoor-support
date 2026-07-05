@@ -17,3 +17,13 @@ export function titleCaseAddress(s: string | null | undefined): string {
   // postcodes (SW7, EC2A, 1AA) and mixed-case names stay untouched.
   return s.replace(/(^|[^A-Za-z0-9'])([A-Z][A-Z']*[A-Z])(?![A-Za-z0-9])/g, (_m, pre, word) => pre + word[0] + word.slice(1).toLowerCase());
 }
+
+/**
+ * Format a commission rate (a fraction, 0–1) as a percentage to ONE decimal place.
+ * NEVER rounds to a whole percent: a stored 9.5% (0.095) must render as "9.5%" and
+ * can never be shown as — or mistaken for — 10% (0.10). 0.095 -> "9.5%",
+ * 0.1 -> "10.0%", 0.25 -> "25.0%". Use this for every commission-rate display.
+ */
+export function fmtRatePct(rate: number | null | undefined): string {
+  return `${((rate ?? 0) * 100).toFixed(1)}%`;
+}

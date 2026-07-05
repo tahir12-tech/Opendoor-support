@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addPartner, getPartner, getPartners, getReferrerLeaderboardMode, orgCounts, setReferrerLeaderboardMode, updatePartnerSettings, getPartnerAudit, type LeaderboardMode, type PartnerAuditEntry, type PartnerSettingsInput, type PartnerStatus } from '@/data';
 import { useSession } from '@/session/SessionContext';
+import { fmtRatePct } from '@/lib/format';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
@@ -26,7 +27,8 @@ const STATUS_PILL: Record<PartnerStatus, [string, PillVariant]> = {
   paused: ['Paused', 'muted'],
 };
 const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-const asPct = (frac: number | undefined, fallback: number) => Math.round((frac != null ? frac : fallback) * 100);
+// One decimal, never rounded, so a 9.5% rate populates the editor as "9.5" (not "10").
+const asPct = (frac: number | undefined, fallback: number) => Number(((frac != null ? frac : fallback) * 100).toFixed(1));
 
 const AUDIT_LABEL: Record<string, string> = {
   partner_rate: 'Partner commission', agent_rate: 'Agent commission',
@@ -129,7 +131,7 @@ export function PartnerManagement() {
     try {
       await updatePartnerSettings(id, input);
       await refreshData(); // live mode: re-read the partner (and its new live rate)
-      toast(`Updated ${input.name}. New applications will use ${Math.round(input.partnerRate * 100)}% partner / ${Math.round(input.agentRate * 100)}% agent; existing applications keep the rate recorded when they were created.`);
+      toast(`Updated ${input.name}. New applications will use ${fmtRatePct(input.partnerRate)} partner / ${fmtRatePct(input.agentRate)} agent; existing applications keep the rate recorded when they were created.`);
       setConfirm(null);
       setOpen(false);
       refresh();
@@ -151,8 +153,8 @@ export function PartnerManagement() {
       // A rate change needs explicit confirmation (current -> new), since it sets
       // the rate for new applications going forward.
       const changes: RateChange[] = [];
-      if (cur.partnerRate !== pr) changes.push({ label: 'Partner commission', from: `${asPct(cur.partnerRate, 0.25)}%`, to: `${Math.round(pr * 100)}%` });
-      if (cur.agentRate !== ar) changes.push({ label: 'Agent commission', from: `${asPct(cur.agentRate, 0.1)}%`, to: `${Math.round(ar * 100)}%` });
+      if (cur.partnerRate !== pr) changes.push({ label: 'Partner commission', from: fmtRatePct(cur.partnerRate ?? 0.25), to: fmtRatePct(pr) });
+      if (cur.agentRate !== ar) changes.push({ label: 'Agent commission', from: fmtRatePct(cur.agentRate ?? 0.1), to: fmtRatePct(ar) });
       if (changes.length) {
         setConfirm({ input, changes });
         return;
@@ -214,7 +216,7 @@ export function PartnerManagement() {
                         <span className="pco__logo">{initials(p.name)}</span>
                         <div>
                           <div className="pco__name">{p.name}{p.primary && <> <Tag variant="primary">Primary</Tag></>}</div>
-                          <div className="pco__since">Live from {p.since || '—'} · Partner {asPct(p.partnerRate, 0.25)}% / Agent {asPct(p.agentRate, 0.1)}%</div>
+                          <div className="pco__since">Live from {p.since || '—'} · Partner {fmtRatePct(p.partnerRate ?? 0.25)} / Agent {fmtRatePct(p.agentRate ?? 0.1)}</div>
                         </div>
                       </div>
                     </td>

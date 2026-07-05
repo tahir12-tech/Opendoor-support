@@ -3,6 +3,18 @@
 Portal → HubSpot, one-way, **event-driven** sync. Implements `HUBSPOT-SYNC-SPEC.md`.
 The portal is the system of record; HubSpot builds attribution/outreach on top.
 
+> ### ⚠️ Test-fixture rule (money-path)
+> **Sync test fixtures MUST use a dedicated, isolated test partner — never a live partner row.**
+> A fixture must never read or snapshot a live partner's commission rate, mint orgs under a
+> live partner, or otherwise entangle with production data. Create a throwaway partner
+> (e.g. `slug='opndoor-test'`) with its own rates, build the test agencies/branches under it,
+> drive the fixture, then delete all of it (and its HubSpot records).
+>
+> _Why:_ a sync proof once built its agencies under the live Rightmove partner and snapshotted
+> its live agent rate. When that rate turned out to be wrong (an unrelated Friday mis-entry),
+> the shared value made the fixtures look like the cause. Isolated test partners keep fixtures
+> provably independent of live money data.
+
 ## Shape
 
 ```

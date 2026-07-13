@@ -264,7 +264,7 @@ async function signingLink(documentId: string, recipientEmail: string): Promise<
 /** Email the tenant the signing link (redirected to the review address in sandbox). */
 async function emailSigningLink(tenantEmail: string, link: string, ctx: RemindContext): Promise<{ ok: boolean; error?: string }> {
   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured, so the signing link could not be emailed." };
- const recipients = REVIEW ? [tenantEmail, REVIEW] : [tenantEmail];
+ const recipients = REVIEW ? [...new Set([tenantEmail, REVIEW])] : [tenantEmail];
   const subject = `Your opndoor Deed of Guarantee is ready to sign, ${ctx.guarantee_ref}`;
   const banner = REVIEW
     ? `<tr><td style="padding:10px 16px;background:#f8eff9;border-bottom:1px solid rgba(39,29,95,0.1);font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#5b4d86;">Test mode. This email was intended for ${tenantEmail} and redirected to you for review.</td></tr>`

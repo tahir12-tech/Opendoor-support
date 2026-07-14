@@ -246,18 +246,33 @@ export async function remindSignature(documentId: string, ctx: RemindContext): P
 }
 
 /** A shareable signing-session link for a recipient (valid ~7 days). */
-async function signingLink(documentId: string, recipientEmail: string): Promise<string | null> {
+// async function signingLink(documentId: string, recipientEmail: string): Promise<string | null> {
+//   try {
+//     const res = await fetch(`${API}/documents/${documentId}/session`, {
+//       method: "POST",
+//       headers: headers(),
+//       body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
+//     });
+//     if (!res.ok) return null;
+//     const j = await res.json();
+//     return j.id ? `https://app.pandadoc.com/s/${j.id}` : null;
+//   } catch {
+//     return null;
+//   }
+// }
+
+async function signingLink(documentId: string, recipientEmail: string): Promise<{ link: string | null; detail?: string }> {
   try {
     const res = await fetch(`${API}/documents/${documentId}/session`, {
       method: "POST",
       headers: headers(),
       body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { link: null, detail: `PandaDoc session ${res.status}: ${(await res.text()).slice(0, 300)}` };
     const j = await res.json();
-    return j.id ? `https://app.pandadoc.com/s/${j.id}` : null;
-  } catch {
-    return null;
+    return j.id ? { link: `https://app.pandadoc.com/s/${j.id}` } : { link: null, detail: `No id in response: ${JSON.stringify(j).slice(0, 200)}` };
+  } catch (e) {
+    return { link: null, detail: `Session request failed: ${e instanceof Error ? e.message : String(e)}` };
   }
 }
 

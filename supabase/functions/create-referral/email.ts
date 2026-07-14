@@ -40,12 +40,33 @@ export interface SendResult {
 //   }
 // }
 
+// Both email for review and tenat
+// export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
+//   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
+//   if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
+//   const recipients = [REVIEW_ADDRESS];
+//   if (opts.to && opts.to !== REVIEW_ADDRESS) recipients.push(opts.to);
+//   try {
+//     const res = await fetch("https://api.resend.com/emails", {
+//       method: "POST",
+//       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+//       body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
+//     });
+//     if (!res.ok) {
+//       const detail = await res.text();
+//       return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
+//     }
+//     return { ok: true, to: recipients.join(", ") };
+//   } catch (e) {
+//     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
+//   }
+// }
 
-export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
+//email for only tenat
+export async function sendEmail(opts: { subject: string; html: string; to: string }): Promise<SendResult> {
   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-  if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
-  const recipients = [REVIEW_ADDRESS];
-  if (opts.to && opts.to !== REVIEW_ADDRESS) recipients.push(opts.to);
+  if (!opts.to) return { ok: false, error: "No recipient email provided." };
+  const recipients = [opts.to];
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -68,10 +89,35 @@ const HELIOTROPE_DEEP = "#b54de0";
 const INK_SOFT = "#5b4d86";
 const LILAC = "#f8eff9";
 
-function layout(title: string, inner: string, intendedFor?: string): string {
-  const testBanner = intendedFor
-    ? `<tr><td style="padding:10px 16px;background:${LILAC};border-bottom:1px solid rgba(39,29,95,0.1);font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">Test mode. This email was intended for ${intendedFor} and redirected to you for review.</td></tr>`
-    : "";
+//layout for both review & email
+
+// function layout(title: string, inner: string, intendedFor?: string): string {
+//   const testBanner = intendedFor
+//     ? `<tr><td style="padding:10px 16px;background:${LILAC};border-bottom:1px solid rgba(39,29,95,0.1);font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">Test mode. This email was intended for ${intendedFor} and redirected to you for review.</td></tr>`
+//     : "";
+//   return `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
+//   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;">
+//     <tr><td align="center">
+//       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
+//         <tr><td style="background:${VALHALLA};padding:22px 28px;">
+//           <span style="font:800 22px 'Sora',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:-0.04em;color:#ffffff;">opndoor</span>
+//           <span style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span>
+//         </td></tr>
+//         ${testBanner}
+//         <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};">
+//           ${inner}
+//         </td></tr>
+//         <tr><td style="padding:18px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">
+//           opndoor. Questions? Reply to this email or contact ${REPLY_TO}.
+//         </td></tr>
+//       </table>
+//     </td></tr>
+//   </table></body></html>`;
+// }
+
+
+//email for tenat only 
+function layout(inner: string): string {
   return `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;">
     <tr><td align="center">
@@ -80,13 +126,8 @@ function layout(title: string, inner: string, intendedFor?: string): string {
           <span style="font:800 22px 'Sora',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:-0.04em;color:#ffffff;">opndoor</span>
           <span style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span>
         </td></tr>
-        ${testBanner}
-        <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};">
-          ${inner}
-        </td></tr>
-        <tr><td style="padding:18px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">
-          opndoor. Questions? Reply to this email or contact ${REPLY_TO}.
-        </td></tr>
+        <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};">${inner}</td></tr>
+        <tr><td style="padding:18px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">opndoor. Questions? Reply to this email or contact ${REPLY_TO}.</td></tr>
       </table>
     </td></tr>
   </table></body></html>`;

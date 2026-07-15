@@ -76,7 +76,7 @@ export function ForgotPassword() {
               <form className="auth__form" onSubmit={submit} noValidate>
                 <div className="field">
                   <label htmlFor="email">Work email</label>
-                  <input id="email" type="email" placeholder="you@foxglove-residential.co.uk" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <input id="email" type="email" placeholder="you@company.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
                 <Button variant="primary" block type="submit" arrow disabled={busy || !email.trim()}>{busy ? 'Sending…' : 'Send reset link'}</Button>
               </form>
@@ -87,7 +87,7 @@ export function ForgotPassword() {
               <div className="confirm-ic"><Icon name="send" strokeWidth={2.4} /></div>
               <h2 className="auth__title">Check your email</h2>
               <p className="auth__sub">If an account exists for that address, we have sent a link to reset your password. It expires in 30 minutes.</p>
-              <div className="sent-to"><Icon name="mailOpen" /><span>{email || 'you@foxglove-residential.co.uk'}</span></div>
+              <div className="sent-to"><Icon name="mailOpen" /><span>{email || 'you@company.com'}</span></div>
               <div className="auth__form">
                 <Button variant="primary" block to="/login">Back to sign in</Button>
               </div>

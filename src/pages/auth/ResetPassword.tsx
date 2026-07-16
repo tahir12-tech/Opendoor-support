@@ -17,9 +17,9 @@
    the user into the app before they finish.
    ===================================================================== */
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
-import { useSession } from '@/session/SessionContext';
+// import { useSession } from '@/session/SessionContext';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -47,8 +47,8 @@ function mapUpdateError(msg: string): string {
 export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' }) {
   const c = COPY[mode];
   useDocumentTitle(c.title);
-  const navigate = useNavigate();
-  const { status } = useSession();
+  // const navigate = useNavigate();
+  // const { status } = useSession();
   const [phase, setPhase] = useState<Phase>(SUPABASE_ENABLED ? 'checking' : 'password');
   // const [code, setCode] = useState('');
   const [pw, setPw] = useState('');
@@ -58,32 +58,28 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
 
   // Once TOTP is verified (invite completion) the session reaches AAL2 and
   // SessionContext resolves to 'ready'; route on to the app then (mirrors Login).
-  useEffect(() => {
-    if (SUPABASE_ENABLED && status === 'ready') navigate('/dashboard', { replace: true });
-  }, [status, navigate]);
+  // useEffect(() => {
+  //   if (SUPABASE_ENABLED && status === 'ready') navigate('/dashboard', { replace: true });
+  // }, [status, navigate]);
 
-  useEffect(() => {
-    if (!SUPABASE_ENABLED) return;
-    let settled = false;
-    const decide = async () => {
-      if (settled) return;
-      const { data } = await sb().auth.getSession();
-      if (!data.session) return;
-      settled = true;
-      try {
-        setPhase('password');
-      } catch {
-        setPhase('password');
-      }
-    };
-    const { data: sub } = sb().auth.onAuthStateChange((_evt, session) => { if (session) void decide(); });
-    void decide();
-    const t = setTimeout(() => {
-      if (settled) return;
-      sb().auth.getSession().then(({ data }) => { if (!settled) { if (data.session) void decide(); else { settled = true; setPhase('invalid'); } } });
-    }, 1500);
-    return () => { sub.subscription.unsubscribe(); clearTimeout(t); };
-  }, []);
+useEffect(() => {
+  if (!SUPABASE_ENABLED) return;
+  let settled = false;
+  const decide = async () => {
+    if (settled) return;
+    const { data } = await sb().auth.getSession();
+    if (!data.session) return;
+    settled = true;
+    setPhase('password');
+  };
+  const { data: sub } = sb().auth.onAuthStateChange((_evt, session) => { if (session) void decide(); });
+  void decide();
+  const t = setTimeout(() => {
+    if (settled) return;
+    sb().auth.getSession().then(({ data }) => { if (!settled) { if (data.session) void decide(); else { settled = true; setPhase('invalid'); } } });
+  }, 1500);
+  return () => { sub.subscription.unsubscribe(); clearTimeout(t); };
+}, []);
 
   /*
   Legacy MFA step-up flow kept as commented reference.
@@ -101,33 +97,57 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
   }
   */
 
+  // async function submitPassword(e: FormEvent) {
+  //   e.preventDefault();
+  //   setError('');
+  //   if (pw.length < 8) { setError('Use at least 8 characters.'); return; }
+  //   if (pw !== pw2) { setError('Those passwords do not match.'); return; }
+  //   if (busy) return;
+  //   setBusy(true);
+  //   try {
+  //     if (SUPABASE_ENABLED) {
+  //       const { error: upErr } = await sb().auth.updateUser({ password: pw });
+  //       if (upErr) {
+  //         setError(mapUpdateError(upErr.message));
+  //         return;
+  //       }
+  //     }
+  //     if (mode === 'reset') {
+  //       if (SUPABASE_ENABLED) await sb().auth.signOut(); // fresh sign-in next.
+  //       setPhase('done');
+  //       return;
+  //     }
+  //     // Invite completion: finish after the password update and route to the app.
+  //     if (!SUPABASE_ENABLED) { setPhase('done'); return; }
+  //     setPhase('done');
+  //   } catch (e2) {
+  //     setError(mapUpdateError(e2 instanceof Error ? e2.message : ''));
+  //   } finally { setBusy(false); }
+  // }
+
   async function submitPassword(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    if (pw.length < 8) { setError('Use at least 8 characters.'); return; }
-    if (pw !== pw2) { setError('Those passwords do not match.'); return; }
-    if (busy) return;
-    setBusy(true);
-    try {
-      if (SUPABASE_ENABLED) {
-        const { error: upErr } = await sb().auth.updateUser({ password: pw });
-        if (upErr) {
-          setError(mapUpdateError(upErr.message));
-          return;
-        }
-      }
-      if (mode === 'reset') {
-        if (SUPABASE_ENABLED) await sb().auth.signOut(); // fresh sign-in next.
-        setPhase('done');
+  e.preventDefault();
+  setError('');
+  if (pw.length < 8) { setError('Use at least 8 characters.'); return; }
+  if (pw !== pw2) { setError('Those passwords do not match.'); return; }
+  if (busy) return;
+  setBusy(true);
+  try {
+    if (SUPABASE_ENABLED) {
+      const { error: upErr } = await sb().auth.updateUser({ password: pw });
+      if (upErr) {
+        setError(mapUpdateError(upErr.message));
         return;
       }
-      // Invite completion: finish after the password update and route to the app.
-      if (!SUPABASE_ENABLED) { setPhase('done'); return; }
-      setPhase('done');
-    } catch (e2) {
-      setError(mapUpdateError(e2 instanceof Error ? e2.message : ''));
-    } finally { setBusy(false); }
-  }
+    }
+    // Both reset and invite: sign out after setting the password so the user
+    // signs in fresh with their new password (no auto-route into the app).
+    if (SUPABASE_ENABLED) await sb().auth.signOut();
+    setPhase('done');
+  } catch (e2) {
+    setError(mapUpdateError(e2 instanceof Error ? e2.message : ''));
+  } finally { setBusy(false); }
+}
 
   return (
     <div className="auth">

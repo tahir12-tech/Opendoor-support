@@ -83,27 +83,47 @@ export function Login() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  async function submitCreds(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    setMasked(authService.maskEmail(email.trim()));
-    if (!SUPABASE_ENABLED) {
-      authService.login(email.trim(), password);
-      setStep('2fa');
-      focusFirst();
-      return;
-    }
-    setBusy(true);
-    const r = await authService.signIn(email, password);
-    if (!r.ok) {
-      setError(r.error ?? 'Wrong email or password.');
-      setBusy(false);
-      return;
-    }
-    mfaSetup.current = true;
-    await advanceToMfa();
-    setBusy(false);
+  // async function submitCreds(e: FormEvent) {
+  //   e.preventDefault();
+  //   setError('');
+  //   setMasked(authService.maskEmail(email.trim()));
+  //   if (!SUPABASE_ENABLED) {
+  //     authService.login(email.trim(), password);
+  //     setStep('2fa');
+  //     focusFirst();
+  //     return;
+  //   }
+  //   setBusy(true);
+  //   const r = await authService.signIn(email, password);
+  //   if (!r.ok) {
+  //     setError(r.error ?? 'Wrong email or password.');
+  //     setBusy(false);
+  //     return;
+  //   }
+  //   mfaSetup.current = true;
+  //   await advanceToMfa();
+  //   setBusy(false);
+  // }
+
+
+async function submitCreds(e: FormEvent) {
+  e.preventDefault();
+  setError('');
+  if (!SUPABASE_ENABLED) {
+    authService.login(email.trim(), password);
+    navigate('/dashboard');
+    return;
   }
+  setBusy(true);
+  const r = await authService.signIn(email, password);
+  if (!r.ok) {
+    setError(r.error ?? 'Wrong email or password.');
+    setBusy(false);
+    return;
+  }
+  navigate('/dashboard', { replace: true });
+  setBusy(false);
+}
 
   async function submitCode(e: FormEvent) {
     e.preventDefault();

@@ -19,7 +19,7 @@ import { KEYS, loadString, saveString } from '@/data/storage';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
 import { hydrateFromSupabase } from '@/lib/hydrate';
-import { anyTabAlive, clearSessionAlive, sessionRecentlyAlive, startHeartbeat, stopHeartbeat } from '@/session/browserSession';
+import { clearSessionAlive, startHeartbeat, stopHeartbeat } from '@/session/browserSession';
 
 export type SessionStatus = 'loading' | 'signedOut' | 'needsMfa' | 'ready';
 
@@ -109,7 +109,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setPeriodState(getSelectedPeriod());
   }, []);
 
-  // Resolve the Supabase session -> status, and hydrate once at AAL2.
+  /*
+  Legacy MFA-based session logic kept as commented reference.
   const resolve = useCallback(async () => {
     if (!SUPABASE_ENABLED || !supabase) {
       setStatus('ready');
@@ -127,22 +128,87 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setStatus('needsMfa');
         return;
       }
-      // The token in localStorage is shared across tabs and survives a browser
-      // quit, so a stored AAL2 level is not sufficient on its own. Trust it only
-      // when this runtime already verified TOTP, OR when a tab was recently alive
-      // (a same-tab refresh or a new tab of a still-live session): a fresh heartbeat
-      // stamp, or — if the stamp looks stale because a backgrounded tab's timer was
-      // throttled — a live tab answering the liveness ping. A cold start after a
-      // full quit has neither, so we force a fresh TOTP challenge.
       if (!mfaTrustedThisRuntime) {
-        if (sessionRecentlyAlive() || (await anyTabAlive())) {
-          mfaTrustedThisRuntime = true;
-        } else {
-          setStatus('needsMfa');
-          return;
-        }
+        setStatus('needsMfa');
+        return;
       }
-      // Trusted: keep the heartbeat fresh so other tabs and the next refresh resume.
+      startHeartbeat();
+      const userId = session.user.id;
+      const { data, error } = await supabase
+        .from('users')
+        .select('role, full_name, email, status, partner:partners(slug)')
+        .eq('id', userId)
+        .single();
+      if (error || !data) {
+        setAuthError(error?.message ?? 'Could not load your profile.');
+        setStatus('needsMfa');
+        return;
+      }
+      if ((data.status as string) === 'deactivated') {
+        await supabase.auth.signOut();
+        mfaTrustedThisRuntime = false;
+        stopHeartbeat();
+        clearSessionAlive();
+        hydratedFor.current = null;
+        hydration.current = null;
+        setProfile(null);
+        setAuthError('This account has been deactivated. Contact your administrator.');
+        setStatus('signedOut');
+        return;
+      }
+      const prof: Profile = {
+        userId,
+        role: data.role as Role,
+        name: data.full_name as string,
+        email: data.email as string,
+        partner: emb(data.partner)?.slug ?? null,
+      };
+      if (prof.partner) setHomePartner(prof.partner);
+      setProfile(prof);
+      setRole(prof.role);
+      if (hydratedFor.current !== userId) {
+        if (hydratedFor.current !== null && hydratedFor.current !== userId) {
+          persistPartner(ALL_PARTNERS);
+          setSelectedPartnerState(ALL_PARTNERS);
+        }
+        if (hydration.current?.userId !== userId) {
+          hydration.current = { userId, promise: hydrateFromSupabase(userId) };
+        }
+        try {
+          await hydration.current.promise;
+        } catch (e) {
+          hydration.current = null;
+          throw e;
+        }
+        hydratedFor.current = userId;
+        setDataVersion((v) => v + 1);
+      }
+      setAuthError(null);
+      setStatus('ready');
+    } catch (e) {
+      hydratedFor.current = null;
+      hydration.current = null;
+      setAuthError(e instanceof Error ? e.message : 'Sign-in failed.');
+      setStatus('needsMfa');
+    }
+  }, [setRole]);
+  */
+
+  // Resolve the Supabase session -> status, and hydrate once at AAL2.
+  const resolve = useCallback(async () => {
+    if (!SUPABASE_ENABLED || !supabase) {
+      setStatus('ready');
+      return;
+    }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setProfile(null);
+        setStatus('signedOut');
+        return;
+      }
+      // Email/password sign-in is sufficient here. Once a session exists and the
+      // profile hydrates, the portal becomes ready for the signed-in user.
       startHeartbeat();
       const userId = session.user.id;
       const { data, error } = await supabase

@@ -19,7 +19,7 @@ import { KEYS, loadString, saveString } from '@/data/storage';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
 import { hydrateFromSupabase } from '@/lib/hydrate';
-import { clearSessionAlive, startHeartbeat, stopHeartbeat } from '@/session/browserSession';
+import { anyTabAlive, clearSessionAlive, sessionRecentlyAlive, startHeartbeat, stopHeartbeat } from '@/session/browserSession';
 
 export type SessionStatus = 'loading' | 'signedOut' | 'needsMfa' | 'ready';
 
@@ -70,7 +70,13 @@ function initialsOf(name: string): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-// const emb = (x: any): any => (Array.isArray(x) ? x[0] : x);
+const emb = (x: any): any => (Array.isArray(x) ? x[0] : x);
+
+// In-memory (per-runtime, NON-persisted) proof that this runtime's AAL2 session
+// is trusted — set once we either resume a still-live browser session or verify
+// a fresh TOTP. It resets on every fresh page load, so it can never be restored
+// from storage; the shared token in localStorage is inert without it.
+let mfaTrustedThisRuntime = false;
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role>(initialRole);
@@ -103,8 +109,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setPeriodState(getSelectedPeriod());
   }, []);
 
-  /*
-  Legacy MFA-based session logic kept as commented reference.
+  // Resolve the Supabase session -> status, and hydrate once at AAL2.
   const resolve = useCallback(async () => {
     if (!SUPABASE_ENABLED || !supabase) {
       setStatus('ready');
@@ -122,10 +127,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setStatus('needsMfa');
         return;
       }
+      // The token in localStorage is shared across tabs and survives a browser
+      // quit, so a stored AAL2 level is not sufficient on its own. Trust it only
+      // when this runtime already verified TOTP, OR when a tab was recently alive
+      // (a same-tab refresh or a new tab of a still-live session): a fresh heartbeat
+      // stamp, or — if the stamp looks stale because a backgrounded tab's timer was
+      // throttled — a live tab answering the liveness ping. A cold start after a
+      // full quit has neither, so we force a fresh TOTP challenge.
       if (!mfaTrustedThisRuntime) {
-        setStatus('needsMfa');
-        return;
+        if (sessionRecentlyAlive() || (await anyTabAlive())) {
+          mfaTrustedThisRuntime = true;
+        } else {
+          setStatus('needsMfa');
+          return;
+        }
       }
+      // Trusted: keep the heartbeat fresh so other tabs and the next refresh resume.
       startHeartbeat();
       const userId = session.user.id;
       const { data, error } = await supabase
@@ -138,6 +155,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setStatus('needsMfa');
         return;
       }
+      // Deactivated mid-session: the ban revoked their refresh token, but a
+      // still-valid access token could otherwise linger until it expires. Sign
+      // out immediately on any app load so deactivation takes effect at once.
       if ((data.status as string) === 'deactivated') {
         await supabase.auth.signOut();
         mfaTrustedThisRuntime = false;
@@ -156,103 +176,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         name: data.full_name as string,
         email: data.email as string,
         partner: emb(data.partner)?.slug ?? null,
-      };
-      if (prof.partner) setHomePartner(prof.partner);
-      setProfile(prof);
-      setRole(prof.role);
-      if (hydratedFor.current !== userId) {
-        if (hydratedFor.current !== null && hydratedFor.current !== userId) {
-          persistPartner(ALL_PARTNERS);
-          setSelectedPartnerState(ALL_PARTNERS);
-        }
-        if (hydration.current?.userId !== userId) {
-          hydration.current = { userId, promise: hydrateFromSupabase(userId) };
-        }
-        try {
-          await hydration.current.promise;
-        } catch (e) {
-          hydration.current = null;
-          throw e;
-        }
-        hydratedFor.current = userId;
-        setDataVersion((v) => v + 1);
-      }
-      setAuthError(null);
-      setStatus('ready');
-    } catch (e) {
-      hydratedFor.current = null;
-      hydration.current = null;
-      setAuthError(e instanceof Error ? e.message : 'Sign-in failed.');
-      setStatus('needsMfa');
-    }
-  }, [setRole]);
-  */
-
-  // Resolve the Supabase session -> status, and hydrate once at AAL2.
-  const resolve = useCallback(async () => {
-    if (!SUPABASE_ENABLED || !supabase) {
-      setStatus('ready');
-      return;
-    }
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setProfile(null);
-        setStatus('signedOut');
-        return;
-      }
-      // Email/password sign-in is sufficient here. Once a session exists and the
-      // profile hydrates, the portal becomes ready for the signed-in user.
-      startHeartbeat();
-      const userId = session.user.id;
-      let profileData: Record<string, unknown> | null = null;
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('role, full_name, email, status, partner_id')
-          .eq('id', userId)
-          .maybeSingle();
-        if (!error) profileData = data as Record<string, unknown> | null;
-      } catch {
-        profileData = null;
-      }
-
-      if (!profileData) {
-        const fallbackRole = (session.user.user_metadata?.role as Role | undefined) ?? initialRole();
-        const fallbackProfile: Profile = {
-          userId,
-          role: fallbackRole,
-          name: (session.user.user_metadata?.full_name as string | undefined) ?? session.user.email?.split('@')[0] ?? 'User',
-          email: session.user.email ?? '',
-          partner: null,
-        };
-        setProfile(fallbackProfile);
-        setRole(fallbackProfile.role);
-        setAuthError(null);
-        setStatus('ready');
-        return;
-      }
-
-      // Deactivated mid-session: the ban revoked their refresh token, but a
-      // still-valid access token could otherwise linger until it expires. Sign
-      // out immediately on any app load so deactivation takes effect at once.
-      if ((profileData.status as string) === 'deactivated') {
-        await supabase.auth.signOut();
-        stopHeartbeat();
-        clearSessionAlive();
-        hydratedFor.current = null;
-        hydration.current = null;
-        setProfile(null);
-        setAuthError('This account has been deactivated. Contact your administrator.');
-        setStatus('signedOut');
-        return;
-      }
-      const prof: Profile = {
-        userId,
-        role: profileData.role as Role,
-        name: (profileData.full_name as string | undefined) ?? session.user.email?.split('@')[0] ?? 'User',
-        email: (profileData.email as string | undefined) ?? session.user.email ?? '',
-        partner: profileData.partner_id as string | null,
       };
       if (prof.partner) setHomePartner(prof.partner);
       setProfile(prof);
@@ -302,7 +225,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [resolve]);
 
   const markMfaVerified = useCallback(() => {
-    // Legacy MFA callback retained for compatibility with older code paths.
+    mfaTrustedThisRuntime = true;
+    // Fresh TOTP verified: begin the heartbeat so a new tab or the next refresh
+    // resumes without re-authenticating (until the browser is fully closed).
     startHeartbeat();
   }, []);
 
@@ -314,7 +239,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       hydration.current = null;
       // Revoke AAL2 trust and stop/forget the heartbeat: a fresh sign-in must
       // re-verify TOTP, and a new tab must not resume off a stale liveness stamp.
-      // mfaTrustedThisRuntime = false;
+      mfaTrustedThisRuntime = false;
       stopHeartbeat();
       clearSessionAlive();
       // #100 Reset the partner scope to All on sign-out. It is persisted in

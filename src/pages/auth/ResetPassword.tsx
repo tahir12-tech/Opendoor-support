@@ -125,7 +125,7 @@ useEffect(() => {
   //   } finally { setBusy(false); }
   // }
 
-  async function submitPassword(e: FormEvent) {
+async function submitPassword(e: FormEvent) {
   e.preventDefault();
   setError('');
   if (pw.length < 8) { setError('Use at least 8 characters.'); return; }
@@ -139,10 +139,13 @@ useEffect(() => {
         setError(mapUpdateError(upErr.message));
         return;
       }
+      // Activate the account now that onboarding (password set) is complete —
+      // the old TOTP-verify trigger no longer fires since 2FA is removed.
+      await sb().rpc('activate_current_user');
+      await sb().auth.signOut();
+      window.location.href = '/login';
+      return;
     }
-    // Both reset and invite: sign out after setting the password so the user
-    // signs in fresh with their new password (no auto-route into the app).
-    if (SUPABASE_ENABLED) await sb().auth.signOut();
     setPhase('done');
   } catch (e2) {
     setError(mapUpdateError(e2 instanceof Error ? e2.message : ''));

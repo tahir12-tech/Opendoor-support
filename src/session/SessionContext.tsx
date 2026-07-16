@@ -70,7 +70,7 @@ function initialsOf(name: string): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const emb = (x: any): any => (Array.isArray(x) ? x[0] : x);
+// const emb = (x: any): any => (Array.isArray(x) ? x[0] : x);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role>(initialRole);
@@ -207,9 +207,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const userId = session.user.id;
       const { data, error } = await supabase
         .from('users')
-        .select('role, full_name, email, status, partner:partners(slug)')
+        .select('role, full_name, email, status, partner_id')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       if (error || !data) {
         setAuthError(error?.message ?? 'Could not load your profile.');
         setStatus('needsMfa');
@@ -235,7 +235,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         role: data.role as Role,
         name: data.full_name as string,
         email: data.email as string,
-        partner: emb(data.partner)?.slug ?? null,
+        partner: data.partner_id as string | null,
       };
       if (prof.partner) setHomePartner(prof.partner);
       setProfile(prof);

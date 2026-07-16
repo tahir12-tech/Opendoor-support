@@ -72,12 +72,6 @@ function initialsOf(name: string): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const emb = (x: any): any => (Array.isArray(x) ? x[0] : x);
 
-// In-memory (per-runtime, NON-persisted) proof that this runtime's AAL2 session
-// is trusted — set once we either resume a still-live browser session or verify
-// a fresh TOTP. It resets on every fresh page load, so it can never be restored
-// from storage; the shared token in localStorage is inert without it.
-let mfaTrustedThisRuntime = false;
-
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role>(initialRole);
   const [selectedPartner, setSelectedPartnerState] = useState<PartnerScope>(() => getSelectedPartner());
@@ -291,9 +285,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [resolve]);
 
   const markMfaVerified = useCallback(() => {
-    mfaTrustedThisRuntime = true;
-    // Fresh TOTP verified: begin the heartbeat so a new tab or the next refresh
-    // resumes without re-authenticating (until the browser is fully closed).
+    // Legacy MFA callback retained for compatibility with older code paths.
     startHeartbeat();
   }, []);
 

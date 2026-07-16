@@ -9,7 +9,7 @@
    before returning any data. SessionContext then loads the profile + data and
    this page routes on to the dashboard.
    ===================================================================== */
-import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '@/data';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
@@ -24,8 +24,6 @@ import './Login.css';
 
 
 
-type Step = 'creds' | '2fa' | 'enrol' | 'verify';
-
 export function Login() {
   useDocumentTitle('Sign in');
   const navigate = useNavigate();
@@ -34,14 +32,11 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Already authenticated (AAL2) -> straight to the app.
   useEffect(() => {
     if (SUPABASE_ENABLED && status === 'ready') navigate('/dashboard', { replace: true });
   }, [status, navigate]);
-
-  const focusFirst = () => setTimeout(() => inputs.current[0]?.focus(), 0);
 
   /*
   Legacy MFA-based flow kept as commented reference.
@@ -92,8 +87,6 @@ export function Login() {
     }
     navigate('/dashboard', { replace: true });
   }
-
-  const onCode = false;
 
   return (
     <div className="auth">

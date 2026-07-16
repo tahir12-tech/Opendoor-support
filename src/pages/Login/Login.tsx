@@ -9,7 +9,7 @@
    before returning any data. SessionContext then loads the profile + data and
    this page routes on to the dashboard.
    ===================================================================== */
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '@/data';
 import { SUPABASE_ENABLED } from '@/lib/supabase';

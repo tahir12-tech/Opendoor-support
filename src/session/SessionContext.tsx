@@ -220,7 +220,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // out immediately on any app load so deactivation takes effect at once.
       if ((data.status as string) === 'deactivated') {
         await supabase.auth.signOut();
-        mfaTrustedThisRuntime = false;
+        // mfaTrustedThisRuntime = false;
         stopHeartbeat();
         clearSessionAlive();
         hydratedFor.current = null;
@@ -297,7 +297,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       hydration.current = null;
       // Revoke AAL2 trust and stop/forget the heartbeat: a fresh sign-in must
       // re-verify TOTP, and a new tab must not resume off a stale liveness stamp.
-      mfaTrustedThisRuntime = false;
+      // mfaTrustedThisRuntime = false;
       stopHeartbeat();
       clearSessionAlive();
       // #100 Reset the partner scope to All on sign-out. It is persisted in

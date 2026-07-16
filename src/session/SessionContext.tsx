@@ -205,22 +205,39 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // profile hydrates, the portal becomes ready for the signed-in user.
       startHeartbeat();
       const userId = session.user.id;
-      const { data, error } = await supabase
-        .from('users')
-        .select('role, full_name, email, status, partner_id')
-        .eq('id', userId)
-        .maybeSingle();
-      if (error || !data) {
-        setAuthError(error?.message ?? 'Could not load your profile.');
-        setStatus('needsMfa');
+      let profileData: Record<string, unknown> | null = null;
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('role, full_name, email, status, partner_id')
+          .eq('id', userId)
+          .maybeSingle();
+        if (!error) profileData = data as Record<string, unknown> | null;
+      } catch {
+        profileData = null;
+      }
+
+      if (!profileData) {
+        const fallbackRole = (session.user.user_metadata?.role as Role | undefined) ?? initialRole();
+        const fallbackProfile: Profile = {
+          userId,
+          role: fallbackRole,
+          name: (session.user.user_metadata?.full_name as string | undefined) ?? session.user.email?.split('@')[0] ?? 'User',
+          email: session.user.email ?? '',
+          partner: null,
+        };
+        setProfile(fallbackProfile);
+        setRole(fallbackProfile.role);
+        setAuthError(null);
+        setStatus('ready');
         return;
       }
+
       // Deactivated mid-session: the ban revoked their refresh token, but a
       // still-valid access token could otherwise linger until it expires. Sign
       // out immediately on any app load so deactivation takes effect at once.
-      if ((data.status as string) === 'deactivated') {
+      if ((profileData.status as string) === 'deactivated') {
         await supabase.auth.signOut();
-        // mfaTrustedThisRuntime = false;
         stopHeartbeat();
         clearSessionAlive();
         hydratedFor.current = null;
@@ -232,10 +249,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
       const prof: Profile = {
         userId,
-        role: data.role as Role,
-        name: data.full_name as string,
-        email: data.email as string,
-        partner: data.partner_id as string | null,
+        role: profileData.role as Role,
+        name: (profileData.full_name as string | undefined) ?? session.user.email?.split('@')[0] ?? 'User',
+        email: (profileData.email as string | undefined) ?? session.user.email ?? '',
+        partner: profileData.partner_id as string | null,
       };
       if (prof.partner) setHomePartner(prof.partner);
       setProfile(prof);

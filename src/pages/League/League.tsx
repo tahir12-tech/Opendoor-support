@@ -198,7 +198,9 @@ function FullLeagueView() {
   const [dir, setDir] = useState<-1 | 1>(-1);
   const [page, setPage] = useState(0);
   const [partner, setPartner] = useState(() => (partnerScope === ALL_PARTNERS ? '' : partnerScope));
-  const prevScope = useRef<PartnerScope>(partnerScope);
+  // Infer the ref type from the runtime value to avoid a missing-type error when
+  // the PartnerScope type isn't available on the server build.
+  const prevScope = useRef(partnerScope);
 
   useEffect(() => {
     if (partnerScope !== prevScope.current) {

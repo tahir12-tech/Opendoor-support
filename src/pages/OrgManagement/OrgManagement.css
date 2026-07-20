@@ -454,3 +454,8 @@ mark.hl {
 .btn.btn--danger:hover {
   filter: brightness(0.94);
 }
+
+.word_wrap {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}

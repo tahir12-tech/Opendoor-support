@@ -605,7 +605,7 @@
 //             {ctEditIndex !== null && <Button variant="ghost" size="sm" onClick={resetContactForm} disabled={busy}>Cancel edit</Button>}
 //           </div>
 //         </div>
-//       </Modal>
+//       </Modal>word_wrap
 //     </>
 //   );
 // }
@@ -1197,7 +1197,7 @@ export function OrgManagement() {
                 <span className="ct-av">{ctInitials(c.name)}</span>
                 <div className="ct-main">
                   <div className="ct-name">{realName(c.name, c.email) || c.email}{c.primary && <span className="ct-primary">Primary</span>}</div>
-                  <div className="ct-sub">{[c.role, realName(c.name, c.email) ? c.email : null, c.phone].filter(Boolean).join(' · ')}</div>
+                  <div className="ct-sub word_wrap">{[c.role, realName(c.name, c.email) ? c.email : null, c.phone].filter(Boolean).join(' · ')}</div>
                 </div>
                 <div className="ct-actions">
                   {!c.primary && <button onClick={() => makePrimary(i)} disabled={busy}>Set primary</button>}

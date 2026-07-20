@@ -186,7 +186,7 @@ function ReferrerLeagueView() {
 // ---- Full view (management / opndoor admin): unchanged tables + the #79 setting. ----
 function FullLeagueView() {
   usePageMeta('league', 'League tables', ['Home', 'League tables']);
-  const { role, partnerScope } = useSession();
+  const { role, partnerScope } = useSession(); 
   const [period, setPeriod] = useLeaguePeriod();
   const [params] = useSearchParams();
   const navigate = useNavigate();

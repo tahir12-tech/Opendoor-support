@@ -753,18 +753,20 @@ function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean): 
 }
 
 /**
- * League export: a branded three-sheet workbook (Agencies, Branches,
- * Referrers), respecting role + partner scoping. In live (Supabase) mode the
- * tables are period-filtered by real dates (same as the on-screen league); in
- * mock mode the league is the modelled current book. The metadata date range
- * reflects the actual window filtered.
+ * League export: a branded workbook for the selected league view, or all three
+ * views when no specific view is supplied. It respects role + partner scoping.
+ * In live (Supabase) mode the tables are period-filtered by real dates (same
+ * as the on-screen league); in mock mode the league is the modelled current
+ * book. The metadata date range reflects the actual window filtered.
  */
-export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string, period: Period): BrandedExport {
-  const views: { view: LeagueView; name: string }[] = [
-    { view: 'agency', name: 'Agencies' },
-    { view: 'branch', name: 'Branches' },
-    { view: 'referrer', name: 'Referrers' },
-  ];
+export function buildLeagueDoc(role: Role, scope: PartnerScope, partner: string, period: Period, view?: LeagueView): BrandedExport {
+  const views: { view: LeagueView; name: string }[] = view
+    ? [{ view, name: view === 'agency' ? 'Agencies' : view === 'branch' ? 'Branches' : 'Referrers' }]
+    : [
+        { view: 'agency', name: 'Agencies' },
+        { view: 'branch', name: 'Branches' },
+        { view: 'referrer', name: 'Referrers' },
+      ];
   const scopeText = role === 'referrer' ? 'Your slice' : 'Whole estate';
   const partnerLabel = leaguePartnerLabel(scope, partner);
   let metaLine: string;

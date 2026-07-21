@@ -42,4 +42,11 @@ describe('branded xlsx exports', () => {
     expect(wb.SheetNames).toEqual(['Agencies', 'Branches', 'Referrers']);
     expect(isXlsx(xlsxBytes(built.sheets))).toBe(true);
   });
+
+  it('league export honours the selected league tab', () => {
+    const built = buildLeagueDoc('superadmin', ALL_PARTNERS, '', period, 'branch');
+    expect(built.sheets.map((s) => s.name)).toEqual(['Branches']);
+    expect(built.sheets[0].doc.blocks[0].kind).toBe('table');
+    expect(built.sheets[0].doc.reportName).toContain('Branches');
+  });
 });
